@@ -1,5 +1,7 @@
 import { Employee, AttendanceRecord, Shift, Holiday, LeaveType, DashboardStats } from '@/types';
 
+export const departments = ['Engineering', 'HR', 'Finance', 'Sales', 'Operations'];
+
 export const mockEmployees: Employee[] = [
   { id: '1', code: 'EMP001', name: 'Arjun Sharma', department: 'Engineering', shift: 'General', active: true, email: 'arjun@company.com', designation: 'Senior Developer' },
   { id: '2', code: 'EMP002', name: 'Priya Patel', department: 'HR', shift: 'General', active: true, email: 'priya@company.com', designation: 'HR Manager' },
@@ -15,8 +17,6 @@ export const mockEmployees: Employee[] = [
   { id: '12', code: 'EMP012', name: 'Shalini Reddy', department: 'Operations', shift: 'Morning', active: true, email: 'shalini@company.com', designation: 'Operations Analyst' },
 ];
 
-const departments = ['Engineering', 'HR', 'Finance', 'Sales', 'Operations'];
-
 function randomStatus(): AttendanceRecord['status'] {
   const statuses: AttendanceRecord['status'][] = ['Present', 'Present', 'Present', 'Present', 'Absent', 'Late', 'Late', 'Half Day', 'Missing Punch'];
   return statuses[Math.floor(Math.random() * statuses.length)];
@@ -27,7 +27,7 @@ function randomTime(base: string, variance: number): string {
   const offset = Math.floor(Math.random() * variance) - variance / 2;
   const totalMin = h * 60 + m + offset;
   const nh = Math.floor(totalMin / 60);
-  const nm = totalMin % 60;
+  const nm = Math.abs(totalMin % 60);
   return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
 }
 
@@ -49,7 +49,7 @@ export function generateAttendanceRecords(month: string): AttendanceRecord[] {
     for (let d = 1; d <= daysInMonth; d++) {
       const date = `${year}-${String(mon).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const dow = new Date(date).getDay();
-      if (dow === 0 || dow === 6) return; // skip weekends
+      if (dow === 0 || dow === 6) return;
 
       const status = randomStatus();
       let inTime = '';
@@ -68,7 +68,6 @@ export function generateAttendanceRecords(month: string): AttendanceRecord[] {
       } else if (status === 'Half Day') {
         inTime = randomTime('09:00', 20);
         outTime = randomTime('13:00', 20);
-        isLate = false;
       } else if (status === 'Missing Punch') {
         inTime = randomTime('09:00', 30);
         outTime = '';
@@ -128,5 +127,3 @@ export const mockDashboardStats: DashboardStats = {
   totalEmployees: 112,
   onLeave: 6,
 };
-
-export const departments = departments;
