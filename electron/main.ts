@@ -1,7 +1,6 @@
 import { app, BrowserWindow, dialog, Menu, MenuItemConstructorOptions } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import crypto from "node:crypto";
 
 function ignoreBrokenPipe(stream?: NodeJS.WritableStream | null) {
@@ -93,8 +92,7 @@ async function startBackend() {
   process.env.PORT = String(process.env.PORT ?? DEFAULT_PORT);
 
   const serverPath = path.join(process.resourcesPath, "backend", "dist", "server.js");
-  const serverUrl = pathToFileURL(serverPath).href;
-  const serverModule = await import(serverUrl);
+  const serverModule = require(serverPath);
 
   if (typeof serverModule.startServer !== "function") {
     throw new Error("Backend startServer function not found.");
