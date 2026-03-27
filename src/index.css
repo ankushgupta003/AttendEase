@@ -46,6 +46,10 @@
     --status-halfday-bg: 25 95% 95%;
     --status-missing: 271 81% 56%;
     --status-missing-bg: 271 81% 96%;
+    --status-weekoff: 210 36% 45%;
+    --status-weekoff-bg: 210 36% 95%;
+    --status-holiday: 340 84% 50%;
+    --status-holiday-bg: 340 84% 95%;
 
     /* Sidebar */
     --sidebar-background: 222 47% 11%;
@@ -131,6 +135,14 @@
     color: hsl(var(--status-missing));
     background-color: hsl(var(--status-missing-bg));
   }
+  .status-weekoff {
+    color: hsl(var(--status-weekoff));
+    background-color: hsl(var(--status-weekoff-bg));
+  }
+  .status-holiday {
+    color: hsl(var(--status-holiday));
+    background-color: hsl(var(--status-holiday-bg));
+  }
   .row-present {
     border-left: 3px solid hsl(var(--status-present));
   }
@@ -145,5 +157,11 @@
   }
   .row-missing {
     border-left: 3px solid hsl(var(--status-missing));
+  }
+  .row-weekoff {
+    border-left: 3px solid hsl(var(--status-weekoff));
+  }
+  .row-holiday {
+    border-left: 3px solid hsl(var(--status-holiday));
   }
 }

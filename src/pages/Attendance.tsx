@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import {
   Upload, Download, CheckCircle2, Lock, AlertTriangle,
@@ -15,8 +15,10 @@ import { FilterBar } from '@/components/attendance/FilterBar';
 import { StatusBadge, getRowClass } from '@/components/common/StatusBadge';
 import { AttendanceEditModal } from '@/components/attendance/AttendanceEditModal';
 import { BulkActionModal } from '@/components/attendance/BulkActionModal';
-import { generateAttendanceRecords } from '@/data/mockData';
 import { AttendanceRecord, FinalizationStatus } from '@/types';
+import { apiDownload, apiGet, apiPatch, apiPost } from '@/lib/api';
+import { useNavigate } from 'react-router-dom';
+import { getInitialMonth, persistMonth } from '@/lib/month';
 
 type SortKey = 'date' | 'employeeCode' | 'employeeName' | 'status';
 type SortDir = 'asc' | 'desc';
@@ -24,9 +26,8 @@ type SortDir = 'asc' | 'desc';
 const exceptionStatuses = ['Absent', 'Late', 'Half Day', 'Missing Punch'];
 
 export default function AttendancePage() {
-  const today = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
-  const [records, setRecords] = useState<AttendanceRecord[]>(() => generateAttendanceRecords(selectedMonth));
+  const [selectedMonth, setSelectedMonth] = useState(getInitialMonth);
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [finStatus, setFinStatus] = useState<FinalizationStatus>('Draft');
   const [search, setSearch] = useState('');
   const [department, setDepartment] = useState('all');
@@ -37,29 +38,25 @@ export default function AttendancePage() {
   const [editRecord, setEditRecord] = useState<AttendanceRecord | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [employees, setEmployees] = useState<{ code: string; name: string; department: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleMonthChange = (m: string) => {
     setSelectedMonth(m);
-    setRecords(generateAttendanceRecords(m));
-    setFinStatus('Draft');
     setSelected(new Set());
   };
 
   const filtered = useMemo(() => {
-    let res = records;
-    if (search) {
-      const q = search.toLowerCase();
-      res = res.filter(r => r.employeeName.toLowerCase().includes(q) || r.employeeCode.toLowerCase().includes(q));
-    }
-    if (department && department !== 'all') res = res.filter(r => r.department === department);
-    if (status && status !== 'all') res = res.filter(r => r.status === status);
-    if (exceptionsOnly) res = res.filter(r => exceptionStatuses.includes(r.status));
-    return [...res].sort((a, b) => {
-      const av = a[sortKey as keyof AttendanceRecord] as string;
-      const bv = b[sortKey as keyof AttendanceRecord] as string;
-      return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    const term = search.trim().toLowerCase();
+    if (!term) return records;
+    return records.filter((row) => {
+      const name = row.employeeName?.toLowerCase() ?? "";
+      const code = row.employeeCode?.toLowerCase() ?? "";
+      return name.includes(term) || code.includes(term);
     });
-  }, [records, search, department, status, exceptionsOnly, sortKey, sortDir]);
+  }, [records, search]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -82,8 +79,15 @@ export default function AttendancePage() {
     else setSelected(new Set(filtered.map(r => r.id)));
   };
 
-  const handleSave = (updated: AttendanceRecord) => {
-    setRecords(prev => prev.map(r => r.id === updated.id ? updated : r));
+  const handleSave = async (updated: AttendanceRecord) => {
+    const saved = await apiPatch<AttendanceRecord>(`/attendance/${updated.id}`, {
+      inTime: updated.inTime || null,
+      outTime: updated.outTime || null,
+      status: updated.status,
+      isLate: updated.isLate,
+      leaveTypeCode: updated.status === 'Leave' ? (updated.leaveTypeCode ?? null) : null
+    });
+    setRecords(prev => prev.map(r => r.id === updated.id ? saved : r));
   };
 
   const exceptionCount = records.filter(r => exceptionStatuses.includes(r.status)).length;
@@ -94,6 +98,70 @@ export default function AttendancePage() {
     Locked: { label: 'Locked', className: 'bg-status-absent-bg text-status-absent', icon: Lock },
   };
   const fin = finStatusConfig[finStatus];
+
+  useEffect(() => {
+    persistMonth(selectedMonth);
+  }, [selectedMonth]);
+
+  useEffect(() => {
+    apiGet<{ status: "DRAFT" | "FINALIZED" | "LOCKED" }>("/attendance/finalization", { month: selectedMonth })
+      .then((res) => {
+        const map: Record<string, FinalizationStatus> = {
+          DRAFT: "Draft",
+          FINALIZED: "Finalized",
+          LOCKED: "Locked"
+        };
+        setFinStatus(map[res.status] ?? "Draft");
+      })
+      .catch(() => setFinStatus("Draft"));
+  }, [selectedMonth]);
+
+  useEffect(() => {
+    setLoading(true);
+    apiGet<AttendanceRecord[]>("/attendance", {
+      month: selectedMonth,
+      search,
+      department,
+      status,
+      exceptionsOnly,
+      sortKey,
+      sortDir,
+      includeNonWorking: true
+    })
+      .then((data) => setRecords(data))
+      .finally(() => setLoading(false));
+  }, [selectedMonth, search, department, status, exceptionsOnly, sortKey, sortDir]);
+
+  useEffect(() => {
+    apiGet<{ code: string; name: string; department: string }[]>("/employees")
+      .then((rows) => {
+        setEmployees(rows.map((row) => ({ code: row.code, name: row.name, department: row.department })));
+        const unique = Array.from(new Set(rows.map((row) => row.department))).sort();
+        setDepartments(unique);
+      })
+      .catch(() => setDepartments([]));
+  }, []);
+
+  const finalizeMonth = async () => {
+    await apiPost(`/attendance/finalize?month=${selectedMonth}`);
+    const res = await apiGet<{ status: "DRAFT" | "FINALIZED" | "LOCKED" }>("/attendance/finalization", { month: selectedMonth });
+    const map: Record<string, FinalizationStatus> = { DRAFT: "Draft", FINALIZED: "Finalized", LOCKED: "Locked" };
+    setFinStatus(map[res.status] ?? "Draft");
+  };
+
+  const lockMonth = async () => {
+    await apiPost(`/attendance/lock?month=${selectedMonth}`);
+    const res = await apiGet<{ status: "DRAFT" | "FINALIZED" | "LOCKED" }>("/attendance/finalization", { month: selectedMonth });
+    const map: Record<string, FinalizationStatus> = { DRAFT: "Draft", FINALIZED: "Finalized", LOCKED: "Locked" };
+    setFinStatus(map[res.status] ?? "Draft");
+  };
+
+  const unlockMonth = async () => {
+    await apiPost(`/attendance/unlock?month=${selectedMonth}`);
+    const res = await apiGet<{ status: "DRAFT" | "FINALIZED" | "LOCKED" }>("/attendance/finalization", { month: selectedMonth });
+    const map: Record<string, FinalizationStatus> = { DRAFT: "Draft", FINALIZED: "Finalized", LOCKED: "Locked" };
+    setFinStatus(map[res.status] ?? "Draft");
+  };
 
   return (
     <AppLayout title="Attendance" selectedMonth={selectedMonth} onMonthChange={handleMonthChange}>
@@ -123,20 +191,39 @@ export default function AttendancePage() {
             <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setBulkOpen(true)}>
               Bulk Actions
             </Button>
-            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => navigate("/upload")}>
               <Upload className="h-3.5 w-3.5" /> Upload
             </Button>
-            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={async () => {
+                const blob = await apiDownload("/attendance/export", { month: selectedMonth });
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `attendance-${selectedMonth}.xlsx`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+              }}
+            >
               <Download className="h-3.5 w-3.5" /> Export
             </Button>
             {finStatus === 'Draft' && (
-              <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => setFinStatus('Finalized')}>
+              <Button size="sm" className="h-8 text-xs gap-1.5" onClick={finalizeMonth}>
                 <CheckCircle2 className="h-3.5 w-3.5" /> Finalize Month
               </Button>
             )}
             {finStatus === 'Finalized' && (
-              <Button size="sm" variant="destructive" className="h-8 text-xs gap-1.5" onClick={() => setFinStatus('Locked')}>
+              <Button size="sm" variant="destructive" className="h-8 text-xs gap-1.5" onClick={lockMonth}>
                 <Lock className="h-3.5 w-3.5" /> Lock
+              </Button>
+            )}
+            {finStatus === 'Locked' && (
+              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={unlockMonth}>
+                <Lock className="h-3.5 w-3.5" /> Unlock
               </Button>
             )}
           </div>
@@ -157,6 +244,7 @@ export default function AttendancePage() {
         <FilterBar
           search={search} onSearchChange={setSearch}
           department={department} onDepartmentChange={setDepartment}
+          departments={departments}
           status={status} onStatusChange={setStatus}
           showExceptionsOnly={exceptionsOnly} onToggleExceptions={() => setExceptionsOnly(v => !v)}
         />
@@ -168,9 +256,9 @@ export default function AttendancePage() {
         </div>
 
         {/* Table */}
-        <div className="rounded-lg border bg-card overflow-hidden">
-          <div className="overflow-auto max-h-[calc(100vh-320px)]">
-            <Table>
+        <div className="rounded-lg border bg-card">
+          <div className="overflow-x-auto max-h-[calc(100vh-320px)]">
+            <Table className="min-w-[980px] whitespace-nowrap">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead className="w-10 pl-4">
@@ -200,13 +288,19 @@ export default function AttendancePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={11} className="text-center py-12 text-muted-foreground text-sm">
-                      No records found
-                    </TableCell>
-                  </TableRow>
-                ) : (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={11} className="text-center py-12 text-muted-foreground text-sm">
+                    Loading...
+                  </TableCell>
+                </TableRow>
+              ) : filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={11} className="text-center py-12 text-muted-foreground text-sm">
+                    No records found
+                  </TableCell>
+                </TableRow>
+              ) : (
                   filtered.map((record) => (
                     <TableRow
                       key={record.id}
@@ -264,7 +358,24 @@ export default function AttendancePage() {
         onClose={() => setEditRecord(null)}
         onSave={handleSave}
       />
-      <BulkActionModal open={bulkOpen} onClose={() => setBulkOpen(false)} />
+      <BulkActionModal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        employees={employees}
+        onApplied={() => {
+          setBulkOpen(false);
+          apiGet<AttendanceRecord[]>("/attendance", {
+            month: selectedMonth,
+            search,
+            department,
+            status,
+            exceptionsOnly,
+            sortKey,
+            sortDir,
+            includeNonWorking: true
+          }).then(setRecords);
+        }}
+      />
     </AppLayout>
   );
 }

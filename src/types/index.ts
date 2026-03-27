@@ -1,4 +1,4 @@
-export type AttendanceStatus = 'Present' | 'Absent' | 'Late' | 'Half Day' | 'Missing Punch';
+export type AttendanceStatus = 'Present' | 'Absent' | 'Late' | 'Half Day' | 'Missing Punch' | 'Week Off' | 'Holiday' | 'Leave';
 export type FinalizationStatus = 'Draft' | 'Finalized' | 'Locked';
 
 export interface Employee {
@@ -25,6 +25,26 @@ export interface AttendanceRecord {
   status: AttendanceStatus;
   isLate: boolean;
   shiftName: string;
+  leaveTypeCode?: string | null;
+}
+
+export interface LeaveSummary {
+  year: number;
+  month?: number;
+  employeeId: string;
+  leaveTaken: number;
+  leaveAllowance: number;
+  leaveBalance: number;
+  period: 'annual' | 'monthly';
+  detailByType: Array<{ code: string; name: string; maxDays: number; taken: number; balance: number; paidLeave: boolean }>;
+  leaveMasterMode: 'annual' | 'monthly';
+  absentDays: number;
+  lateDays: number;
+  sandwichDeductionDays: number;
+  lopDays: number;
+  grossSalary: number;
+  deductions: number;
+  netSalary: number;
 }
 
 export interface Shift {

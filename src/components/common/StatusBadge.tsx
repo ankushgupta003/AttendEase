@@ -7,6 +7,9 @@ const statusConfig: Record<AttendanceStatus, { label: string; className: string 
   Late: { label: 'Late', className: 'status-late' },
   'Half Day': { label: 'Half Day', className: 'status-halfday' },
   'Missing Punch': { label: 'Missing Punch', className: 'status-missing' },
+  'Week Off': { label: 'Week Off', className: 'status-weekoff' },
+  Holiday: { label: 'Holiday', className: 'status-holiday' },
+  Leave: { label: 'Leave', className: 'status-absent' },
 };
 
 interface StatusBadgeProps {
@@ -36,6 +39,9 @@ export const getRowClass = (status: AttendanceStatus): string => {
     Late: 'row-late',
     'Half Day': 'row-halfday',
     'Missing Punch': 'row-missing',
+    'Week Off': 'row-weekoff',
+    Holiday: 'row-holiday',
+    Leave: 'row-absent',
   };
   return map[status];
 };

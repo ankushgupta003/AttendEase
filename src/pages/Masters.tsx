@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, Pencil, Trash2, Upload, Download } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,42 +12,115 @@ import { Label } from '@/components/ui/label';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { mockShifts, mockHolidays, mockLeaveTypes } from '@/data/mockData';
 import { Shift, Holiday, LeaveType } from '@/types';
+import { apiDelete, apiDownload, apiGet, apiPatch, apiPost, apiPostForm } from '@/lib/api';
+import { getInitialMonth, persistMonth } from '@/lib/month';
 
 export default function MastersPage() {
-  const today = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
-  const [shifts, setShifts] = useState<Shift[]>(mockShifts);
-  const [holidays, setHolidays] = useState<Holiday[]>(mockHolidays);
-  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>(mockLeaveTypes);
+  const [selectedMonth, setSelectedMonth] = useState(getInitialMonth);
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
 
   const [editShift, setEditShift] = useState<Shift | null>(null);
   const [editHoliday, setEditHoliday] = useState<Holiday | null>(null);
   const [editLeave, setEditLeave] = useState<LeaveType | null>(null);
+  const holidayFileRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
-  const saveShift = () => {
+  useEffect(() => {
+    persistMonth(selectedMonth);
+  }, [selectedMonth]);
+
+  useEffect(() => {
+    apiGet<Shift[]>("/shifts").then(setShifts).catch(() => setShifts([]));
+    apiGet<Holiday[]>("/holidays").then(setHolidays).catch(() => setHolidays([]));
+    apiGet<LeaveType[]>("/leave-types").then(setLeaveTypes).catch(() => setLeaveTypes([]));
+  }, []);
+
+  const saveShift = async () => {
     if (!editShift) return;
-    setShifts(prev => prev.find(s => s.id === editShift.id)
-      ? prev.map(s => s.id === editShift.id ? editShift : s)
-      : [...prev, { ...editShift, id: String(Date.now()) }]);
+    if (editShift.id) {
+      const updated = await apiPatch<Shift>(`/shifts/${editShift.id}`, editShift);
+      setShifts(prev => prev.map(s => s.id === editShift.id ? updated : s));
+    } else {
+      const created = await apiPost<Shift>("/shifts", editShift);
+      setShifts(prev => [...prev, created]);
+    }
     setEditShift(null);
   };
 
-  const saveHoliday = () => {
+  const saveHoliday = async () => {
     if (!editHoliday) return;
-    setHolidays(prev => prev.find(h => h.id === editHoliday.id)
-      ? prev.map(h => h.id === editHoliday.id ? editHoliday : h)
-      : [...prev, { ...editHoliday, id: String(Date.now()) }]);
+    if (editHoliday.id) {
+      const updated = await apiPatch<Holiday>(`/holidays/${editHoliday.id}`, editHoliday);
+      setHolidays(prev => prev.map(h => h.id === editHoliday.id ? updated : h));
+    } else {
+      const created = await apiPost<Holiday>("/holidays", editHoliday);
+      setHolidays(prev => [...prev, created]);
+    }
     setEditHoliday(null);
   };
 
-  const saveLeave = () => {
+  const saveLeave = async () => {
     if (!editLeave) return;
-    setLeaveTypes(prev => prev.find(l => l.id === editLeave.id)
-      ? prev.map(l => l.id === editLeave.id ? editLeave : l)
-      : [...prev, { ...editLeave, id: String(Date.now()) }]);
+    const saved = await apiPost<LeaveType>("/leave-types", editLeave);
+    setLeaveTypes(prev => {
+      const exists = prev.find(l => l.code === saved.code);
+      return exists ? prev.map(l => l.code === saved.code ? saved : l) : [...prev, saved];
+    });
     setEditLeave(null);
+  };
+
+  const deleteHoliday = async (holidayId: string) => {
+    if (!window.confirm('Delete this holiday? This action cannot be undone.')) return;
+    try {
+      await apiDelete(`/holidays/${holidayId}`);
+      setHolidays(prev => prev.filter(h => h.id !== holidayId));
+      toast({ title: 'Holiday deleted', description: 'Holiday has been removed.' });
+    } catch (error) {
+      toast({ title: 'Delete failed', description: 'Unable to delete holiday, please try again.', variant: 'destructive' });
+    }
+  };
+
+  const deleteLeave = async (code: string, id: string) => {
+    const key = (code || id || '').toString().trim();
+    if (!key) {
+      toast({ title: 'Delete failed', description: 'Leave type identifier is invalid.', variant: 'destructive' });
+      return;
+    }
+
+    if (!window.confirm(`Delete leave type ${key}? This action cannot be undone.`)) return;
+
+    try {
+      console.debug('Deleting leave type', { code, id, key });
+      const path = `/leave-types/${encodeURIComponent(key)}`;
+      await apiDelete(path);
+      setLeaveTypes(prev => prev.filter(l => l.code !== code && l.id !== id));
+      toast({ title: 'Leave type deleted', description: `Leave type ${key} has been removed.` });
+    } catch (error) {
+      console.error('Delete leave failed', error, { code, id, key });
+      toast({ title: 'Delete failed', description: `Unable to delete leave type ${key}.`, variant: 'destructive' });
+    }
+  };
+
+  const uploadHolidayFile = async (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    await apiPostForm("/holidays/upload", form);
+    const fresh = await apiGet<Holiday[]>("/holidays");
+    setHolidays(fresh);
+  };
+
+  const downloadHolidayTemplate = async () => {
+    const blob = await apiDownload("/holidays/template");
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "holiday_template.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   return (
@@ -98,10 +172,15 @@ export default function MastersPage() {
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <CardTitle className="text-sm font-semibold">Holiday Calendar</CardTitle>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => holidayFileRef.current?.click()}
+                    >
                       <Upload className="h-3 w-3" /> Upload Excel
                     </Button>
-                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={downloadHolidayTemplate}>
                       <Download className="h-3 w-3" /> Template
                     </Button>
                     <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setEditHoliday({ id: '', name: '', date: '', type: 'National' })}>
@@ -111,8 +190,19 @@ export default function MastersPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="rounded-lg border overflow-hidden">
-                  <table className="w-full text-xs">
+                <input
+                  ref={holidayFileRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadHolidayFile(file);
+                  }}
+                />
+                <div className="rounded-lg border">
+                  <div className="w-full overflow-x-auto">
+                    <table className="w-max text-xs min-w-[560px] whitespace-nowrap">
                     <thead>
                       <tr className="bg-muted/40 border-b">
                         {['Holiday Name', 'Date', 'Type', 'Actions'].map(h => (
@@ -131,13 +221,14 @@ export default function MastersPage() {
                           <td className="px-4 py-2.5">
                             <div className="flex gap-1">
                               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditHoliday(h)}><Pencil className="h-3 w-3" /></Button>
-                              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setHolidays(prev => prev.filter(x => x.id !== h.id))}><Trash2 className="h-3 w-3" /></Button>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteHoliday(h.id)}><Trash2 className="h-3 w-3" /></Button>
                             </div>
                           </td>
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                    </table>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -168,9 +259,14 @@ export default function MastersPage() {
                           {l.paidLeave ? '● Paid' : '● Unpaid'}
                         </span>
                       </div>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditLeave(l)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditLeave(l)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteLeave(l.code, l.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>

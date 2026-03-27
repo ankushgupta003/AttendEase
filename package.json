@@ -3,9 +3,20 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "electron/dist/main.js",
   "scripts": {
     "dev": "vite",
+    "dev:renderer": "vite",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:electron": "wait-on http://localhost:5173 http://localhost:5000/health && cmd /c \"set ELECTRON_RUN_AS_NODE=& set VITE_DEV_SERVER_URL=http://localhost:5173& set ELECTRON_DEV=true& electron .\"",
+    "dev:desktop": "concurrently -k \"npm run dev:backend\" \"npm run dev:renderer\" \"npm run dev:electron\"",
     "build": "vite build",
+    "build:renderer": "vite build",
+    "build:backend": "npm --prefix backend run prisma:generate && npm --prefix backend run build",
+    "build:main": "tsc -p electron/tsconfig.json",
+    "build:db": "npm --prefix backend run prisma:template",
+    "build:desktop": "npm run build:renderer && npm run build:backend && npm run build:main && npm run build:db && electron-builder",
+    "build:desktop:publish": "npm run build:renderer && npm run build:backend && npm run build:main && npm run build:db && electron-builder --publish always",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -74,17 +85,65 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",
+    "concurrently": "^9.2.1",
+    "cross-env": "^7.0.3",
+    "electron": "^34.2.0",
+    "electron-builder": "^24.13.3",
+    "electron-updater": "^6.2.1",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
     "jsdom": "^20.0.3",
-    "lovable-tagger": "^1.1.13",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
     "vite": "^5.4.19",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.attendease.app",
+    "productName": "AttendEase",
+    "icon": "public/favicon.ico",
+    "win": {
+      "icon": "public/favicon.ico",
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "YOUR_GITHUB_OWNER",
+        "repo": "YOUR_REPO_NAME"
+      }
+    ],
+    "files": [
+      "dist/**",
+      "electron/dist/**"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/dist",
+        "to": "backend/dist"
+      },
+      {
+        "from": "backend/node_modules",
+        "to": "backend/node_modules"
+      },
+      {
+        "from": "backend/package.json",
+        "to": "backend/package.json"
+      },
+      {
+        "from": "backend/prisma/template.db",
+        "to": "template.db"
+      }
+    ],
+    "asarUnpack": [
+      "**/node_modules/.prisma/**",
+      "**/node_modules/@prisma/client/**"
+    ]
   }
 }

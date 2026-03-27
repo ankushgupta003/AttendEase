@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -19,12 +19,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { mockEmployees } from '@/data/mockData';
-import { AttendanceStatus } from '@/types';
+import { apiGet, apiPost } from '@/lib/api';
 
 interface BulkActionModalProps {
   open: boolean;
   onClose: () => void;
+  onApplied?: () => void;
+  employees?: { code: string; name: string; department: string }[];
   selectedIds?: string[];
 }
 
@@ -37,9 +38,10 @@ const actionOptions = [
   { value: 'fix-missing', label: 'Fix Missing Punch' },
 ];
 
-export function BulkActionModal({ open, onClose }: BulkActionModalProps) {
+export function BulkActionModal({ open, onClose, onApplied, employees: employeesProp }: BulkActionModalProps) {
   const [action, setAction] = useState<BulkAction>('mark-present');
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
+  const [employees, setEmployees] = useState<{ code: string; name: string; department: string }[]>([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [shift, setShift] = useState('General');
@@ -51,17 +53,34 @@ export function BulkActionModal({ open, onClose }: BulkActionModalProps) {
   };
 
   const selectAll = () => {
-    if (selectedEmployees.length === mockEmployees.length) {
+    if (selectedEmployees.length === employees.length) {
       setSelectedEmployees([]);
     } else {
-      setSelectedEmployees(mockEmployees.map(e => e.code));
+      setSelectedEmployees(employees.map(e => e.code));
     }
   };
 
-  const handleApply = () => {
-    // In real app: call API
-    console.log({ action, selectedEmployees, dateFrom, dateTo });
+  useEffect(() => {
+    if (!open) return;
+    if (employeesProp && employeesProp.length) {
+      setEmployees(employeesProp);
+      return;
+    }
+    apiGet<{ code: string; name: string; department: string }[]>("/employees")
+      .then((rows) => setEmployees(rows))
+      .catch(() => setEmployees([]));
+  }, [open, employeesProp]);
+
+  const handleApply = async () => {
+    await apiPost("/attendance/bulk", {
+      action,
+      employeeCodes: selectedEmployees,
+      dateFrom,
+      dateTo,
+      shiftName: shift
+    });
     onClose();
+    onApplied?.();
   };
 
   return (
@@ -120,11 +139,11 @@ export function BulkActionModal({ open, onClose }: BulkActionModalProps) {
             <div className="flex items-center justify-between">
               <Label>Select Employees</Label>
               <button onClick={selectAll} className="text-xs text-primary hover:underline">
-                {selectedEmployees.length === mockEmployees.length ? 'Deselect All' : 'Select All'}
+                {selectedEmployees.length === employees.length ? 'Deselect All' : 'Select All'}
               </button>
             </div>
             <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
-              {mockEmployees.map(emp => (
+              {employees.map(emp => (
                 <div key={emp.code} className="flex items-center gap-2.5 rounded px-2 py-1.5 hover:bg-muted/50">
                   <Checkbox
                     id={emp.code}

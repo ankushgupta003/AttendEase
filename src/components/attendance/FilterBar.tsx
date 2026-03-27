@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Search, Filter, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -9,17 +8,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { departments } from '@/data/mockData';
 import { AttendanceStatus } from '@/types';
 import { cn } from '@/lib/utils';
 
-const statusOptions: AttendanceStatus[] = ['Present', 'Absent', 'Late', 'Half Day', 'Missing Punch'];
+const statusOptions: AttendanceStatus[] = ['Present', 'Absent', 'Late', 'Half Day', 'Missing Punch', 'Week Off', 'Holiday', 'Leave'];
 
 interface FilterBarProps {
   search: string;
   onSearchChange: (v: string) => void;
   department: string;
   onDepartmentChange: (v: string) => void;
+  departments: string[];
   status: string;
   onStatusChange: (v: string) => void;
   showExceptionsOnly: boolean;
@@ -30,6 +29,7 @@ interface FilterBarProps {
 export function FilterBar({
   search, onSearchChange,
   department, onDepartmentChange,
+  departments,
   status, onStatusChange,
   showExceptionsOnly, onToggleExceptions,
   className,

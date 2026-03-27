@@ -7,7 +7,6 @@ import {
   Settings,
   FileText,
   ChevronLeft,
-  Building2,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -22,6 +21,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
+import AttendEaseLogo from '@/components/branding/AttendEaseLogo';
 
 const navItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
@@ -40,15 +40,11 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r-0">
       <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary flex-shrink-0">
-            <Building2 className="h-4 w-4 text-primary-foreground" />
-          </div>
-          {!collapsed && (
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-sidebar-accent-foreground truncate">HRAttend Pro</p>
-              <p className="text-xs text-sidebar-foreground/60 truncate">HR Management</p>
-            </div>
+        <div className={cn('flex items-center justify-center', !collapsed && 'justify-start')}>
+          {collapsed ? (
+            <AttendEaseLogo compact className="scale-[0.45] -my-6" />
+          ) : (
+            <AttendEaseLogo className="scale-[0.6] -my-4 origin-left" />
           )}
         </div>
       </SidebarHeader>

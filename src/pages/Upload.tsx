@@ -1,31 +1,29 @@
-import { useState, useRef } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, ArrowRight } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { apiDownload, apiGet, apiPostForm } from '@/lib/api';
+import { getInitialMonth, persistMonth } from '@/lib/month';
 
-const previewData = [
-  { code: 'EMP001', date: '2025-01-01', inTime: '09:05', outTime: '18:10' },
-  { code: 'EMP002', date: '2025-01-01', inTime: '09:32', outTime: '18:45' },
-  { code: 'EMP003', date: '2025-01-01', inTime: '08:55', outTime: '' },
-  { code: 'EMP004', date: '2025-01-01', inTime: '10:15', outTime: '17:50' },
-  { code: 'EMP005', date: '2025-01-01', inTime: '', outTime: '' },
-];
+type PreviewRow = { code: string; date: string; inTime: string; outTime: string; status: string };
 
 const columnOptions = ['Employee Code', 'Employee Name', 'Date', 'In Time', 'Out Time', 'Ignore'];
 
 export default function UploadPage() {
-  const today = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`);
+  const [selectedMonth, setSelectedMonth] = useState(getInitialMonth);
   const [file, setFile] = useState<File | null>(null);
   const [step, setStep] = useState<'upload' | 'map' | 'preview' | 'done'>('upload');
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
+  const [summary, setSummary] = useState<{ processed: number; exceptions: number } | null>(null);
+  const [holidays, setHolidays] = useState<{ id: string; name: string; date: string }[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({
     A: 'Employee Code', B: 'Date', C: 'In Time', D: 'Out Time',
-  });
+  }, []);
 
   const handleFile = (f: File) => {
     setFile(f);
@@ -39,16 +37,28 @@ export default function UploadPage() {
     if (f) handleFile(f);
   };
 
+  const monthPrefix = `${selectedMonth}-`;
+  const monthHolidays = holidays.filter((h) => h.date.startsWith(monthPrefix));
+
+  useEffect(() => {
+    persistMonth(selectedMonth);
+  }, [selectedMonth]);
+
+  useEffect(() => {
+    apiGet<{ id: string; name: string; date: string }[]>("/holidays")
+      .then(setHolidays)
+      .catch(() => setHolidays([]));
+  }, []);
+
   return (
     <AppLayout title="Upload Attendance" selectedMonth={selectedMonth} onMonthChange={setSelectedMonth}>
       <div className="max-w-3xl space-y-5">
-        {/* Steps indicator */}
         <div className="flex items-center gap-2">
           {(['upload', 'map', 'preview', 'done'] as const).map((s, i) => (
             <div key={s} className="flex items-center gap-2">
               <div className={`flex items-center gap-1.5 text-xs ${step === s ? 'text-primary font-semibold' : i < ['upload', 'map', 'preview', 'done'].indexOf(step) ? 'text-status-present' : 'text-muted-foreground'}`}>
                 <div className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold ${step === s ? 'bg-primary text-primary-foreground' : i < ['upload', 'map', 'preview', 'done'].indexOf(step) ? 'bg-status-present-bg text-status-present' : 'bg-muted text-muted-foreground'}`}>
-                  {i < ['upload', 'map', 'preview', 'done'].indexOf(step) ? '✓' : i + 1}
+                  {i < ['upload', 'map', 'preview', 'done'].indexOf(step) ? 'OK' : i + 1}
                 </div>
                 <span className="capitalize hidden sm:block">{s === 'done' ? 'Complete' : s}</span>
               </div>
@@ -77,7 +87,7 @@ export default function UploadPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium">Drop your file here or click to browse</p>
-                    <p className="text-xs text-muted-foreground mt-1">Supports .xlsx, .xls, .csv — Max 10MB</p>
+                    <p className="text-xs text-muted-foreground mt-1">Supports .xlsx, .xls, .csv - Max 10MB</p>
                   </div>
                   <Button variant="outline" size="sm" className="text-xs">Choose File</Button>
                 </div>
@@ -86,16 +96,41 @@ export default function UploadPage() {
 
               <div className="rounded-lg bg-muted/50 p-4 space-y-2">
                 <p className="text-xs font-semibold">Expected Format</p>
-                <div className="grid grid-cols-4 gap-2 text-xs text-muted-foreground">
-                  <div className="bg-card rounded px-2 py-1 text-center">Employee Code</div>
-                  <div className="bg-card rounded px-2 py-1 text-center">Date (YYYY-MM-DD)</div>
-                  <div className="bg-card rounded px-2 py-1 text-center">In Time (HH:MM)</div>
-                  <div className="bg-card rounded px-2 py-1 text-center">Out Time (HH:MM)</div>
-                </div>
-                <Button variant="link" size="sm" className="text-xs h-auto p-0 text-primary">
-                  Download Template →
+                <p className="text-xs text-muted-foreground">
+                  Use the Schedule block format: header rows with ID, Name, Dept, Shift, Date range,
+                  followed by daily rows with time cells (first time = In, last time = Out).
+                </p>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="text-xs h-auto p-0 text-primary"
+                  onClick={async () => {
+                    const blob = await apiDownload("/attendance/template");
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = "attendance_template.xlsx";
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                  }}
+                >
+                  Download Template &gt;
                 </Button>
               </div>
+
+              {monthHolidays.length > 0 && (
+                <div className="rounded-lg border border-border/60 bg-card p-3">
+                  <p className="text-xs font-semibold mb-2">Holidays This Month</p>
+                  <ul className="text-xs text-muted-foreground space-y-1">
+                    {monthHolidays.map((h) => (
+                      <li key={h.id}>
+                        {h.date}: {h.name}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -135,7 +170,20 @@ export default function UploadPage() {
               </div>
               <div className="flex gap-2 justify-end pt-2">
                 <Button variant="outline" size="sm" onClick={() => setStep('upload')}>Back</Button>
-                <Button size="sm" onClick={() => setStep('preview')}>Preview Data →</Button>
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    if (!file) return;
+                    const form = new FormData();
+                    form.append("file", file);
+                    form.append("mapping", JSON.stringify(mapping));
+                    const res = await apiPostForm<{ preview: PreviewRow[] }>("/attendance/upload/preview", form);
+                    setPreviewRows(res.preview);
+                    setStep('preview');
+                  }}
+                >
+                  Preview Data &gt;
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -148,8 +196,9 @@ export default function UploadPage() {
               <CardDescription>Review the parsed data before processing.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-lg border overflow-hidden">
-                <table className="w-full text-xs">
+              <div className="rounded-lg border">
+                <div className="w-full overflow-x-auto">
+                  <table className="w-max text-xs min-w-[520px] whitespace-nowrap">
                   <thead>
                     <tr className="bg-muted/40 border-b">
                       {['Employee Code', 'Date', 'In Time', 'Out Time', 'Status'].map(h => (
@@ -158,14 +207,18 @@ export default function UploadPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {previewData.map((row, i) => (
+                    {previewRows.map((row, i) => (
                       <tr key={i} className="border-b border-border/50 last:border-0">
                         <td className="px-3 py-2 font-mono font-medium">{row.code}</td>
                         <td className="px-3 py-2">{row.date}</td>
                         <td className="px-3 py-2 font-mono">{row.inTime || <span className="text-destructive">Missing</span>}</td>
                         <td className="px-3 py-2 font-mono">{row.outTime || <span className="text-destructive">Missing</span>}</td>
                         <td className="px-3 py-2">
-                          {!row.inTime || !row.outTime ? (
+                          {row.status === "Week Off" || row.status === "Holiday" ? (
+                            <span className="status-present inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium">
+                              {row.status}
+                            </span>
+                          ) : (!row.inTime || !row.outTime) ? (
                             <span className="status-missing inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium">
                               <AlertCircle className="h-3 w-3" /> Missing Punch
                             </span>
@@ -178,15 +231,27 @@ export default function UploadPage() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                  </table>
+                </div>
               </div>
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground">
                 <AlertCircle className="h-4 w-4 text-status-missing flex-shrink-0" />
-                <span>2 records have missing punches and will be flagged for review.</span>
+                <span>Missing punches will be flagged for review.</span>
               </div>
               <div className="flex gap-2 justify-end pt-1">
                 <Button variant="outline" size="sm" onClick={() => setStep('map')}>Back</Button>
-                <Button size="sm" onClick={() => setStep('done')}>
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    if (!file) return;
+                    const form = new FormData();
+                    form.append("file", file);
+                    form.append("mapping", JSON.stringify(mapping));
+                    const res = await apiPostForm<{ summary: { processed: number; exceptions: number } }>("/attendance/upload", form);
+                    setSummary(res.summary);
+                    setStep('done');
+                  }}
+                >
                   <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Process Attendance
                 </Button>
               </div>
@@ -203,7 +268,7 @@ export default function UploadPage() {
               <div>
                 <h3 className="text-lg font-semibold">Upload Successful!</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  5 records processed · 2 exceptions flagged for review
+                  {summary ? `${summary.processed} records processed · ${summary.exceptions} exceptions flagged` : 'Upload completed'}
                 </p>
               </div>
               <div className="flex gap-2 justify-center">
@@ -211,7 +276,7 @@ export default function UploadPage() {
                   Upload Another
                 </Button>
                 <Button size="sm" onClick={() => window.location.href = '/attendance'}>
-                  Go to Attendance →
+                  Go to Attendance &gt;
                 </Button>
               </div>
             </CardContent>
@@ -221,3 +286,6 @@ export default function UploadPage() {
     </AppLayout>
   );
 }
+
+
+

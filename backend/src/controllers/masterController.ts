@@ -1,0 +1,208 @@
+import type { Request, Response, NextFunction } from "express";
+import xlsx from "xlsx";
+import { dayjs, parseFlexibleDate } from "../utils/date.js";
+import {
+  listShifts,
+  createShift,
+  updateShift,
+  listHolidays,
+  createHoliday,
+  updateHoliday,
+  deleteHoliday,
+  listLeaveTypes,
+  upsertLeaveType,
+  deleteLeaveType
+} from "../services/attendanceService.js";
+
+function toHolidayDto(holiday: any) {
+  const type = String(holiday.type ?? "NATIONAL").toLowerCase();
+  const label = type.charAt(0).toUpperCase() + type.slice(1);
+  return {
+    id: holiday.id,
+    name: holiday.name,
+    date: holiday.date.toISOString().slice(0, 10),
+    type: label
+  };
+}
+
+export async function listShiftsHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const shifts = await listShifts();
+    return res.json(shifts);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function createShiftHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { name, startTime, endTime, graceMinutes } = req.body as {
+      name: string;
+      startTime: string;
+      endTime: string;
+      graceMinutes: number;
+    };
+    const created = await createShift({ name, startTime, endTime, graceMinutes });
+    return res.status(201).json(created);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function updateShiftHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { shiftId } = req.params;
+    const updated = await updateShift(shiftId, req.body);
+    return res.json(updated);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function listHolidaysHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const holidays = await listHolidays();
+    return res.json(holidays.map(toHolidayDto));
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function createHolidayHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { name, date, type } = req.body as { name: string; date: string; type?: string };
+    const parsed = dayjs(date, "YYYY-MM-DD", true);
+    if (!parsed.isValid()) {
+      return res.status(400).json({ message: "Invalid date format. Use YYYY-MM-DD." });
+    }
+    const safeDate = new Date(Date.UTC(parsed.year(), parsed.month(), parsed.date(), 12, 0, 0));
+    const created = await createHoliday({
+      name,
+      date: safeDate,
+      type: (type?.toUpperCase() as any) ?? "NATIONAL"
+    });
+    return res.status(201).json(toHolidayDto(created));
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function updateHolidayHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { holidayId } = req.params;
+    const { name, date, type } = req.body as { name?: string; date?: string; type?: string };
+    const parsed = date ? dayjs(date, "YYYY-MM-DD", true) : null;
+    if (date && (!parsed || !parsed.isValid())) {
+      return res.status(400).json({ message: "Invalid date format. Use YYYY-MM-DD." });
+    }
+    const safeDate = parsed
+      ? new Date(Date.UTC(parsed.year(), parsed.month(), parsed.date(), 12, 0, 0))
+      : undefined;
+    const updated = await updateHoliday(holidayId, {
+      name,
+      date: safeDate,
+      type: type ? (type.toUpperCase() as any) : undefined
+    });
+    return res.json(toHolidayDto(updated));
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function deleteHolidayHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { holidayId } = req.params;
+    const deleted = await deleteHoliday(holidayId);
+    return res.json(deleted);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function uploadHolidayHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded." });
+    }
+
+    const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
+      return res.status(400).json({ message: "No worksheet found." });
+    }
+    const sheet = workbook.Sheets[sheetName];
+    const rows = xlsx.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: "" }) as unknown[][];
+
+    let created = 0;
+    for (const row of rows) {
+      if (!row || row.length < 2) continue;
+      const date = parseFlexibleDate(row[0]);
+      const name = String(row[1] ?? "").trim();
+      const type = String(row[2] ?? "").trim();
+      if (!date || !date.isValid() || !name) continue;
+      const safeDate = new Date(Date.UTC(date.year(), date.month(), date.date(), 12, 0, 0));
+      await createHoliday({ name, date: safeDate, type: (type.toUpperCase() as any) || "NATIONAL" });
+      created += 1;
+    }
+
+    return res.json({ message: "Holiday upload completed.", created });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function downloadHolidayTemplate(req: Request, res: Response, next: NextFunction) {
+  try {
+    const rows = [
+      { Date: "2026-01-26", Name: "Republic Day", Type: "National" },
+      { Date: "2026-03-08", Name: "Holi", Type: "National" }
+    ];
+    const worksheet = xlsx.utils.json_to_sheet(rows);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, "Holidays");
+    const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader("Content-Disposition", "attachment; filename=holiday_template.xlsx");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    return res.send(buffer);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function listLeaveTypesHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const leaveTypes = await listLeaveTypes();
+    return res.json(leaveTypes);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function upsertLeaveTypeHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { code, name, paidLeave, maxDays } = req.body as {
+      code: string;
+      name: string;
+      paidLeave: boolean;
+      maxDays: number;
+    };
+    const saved = await upsertLeaveType({ code, name, paidLeave, maxDays });
+    return res.json(saved);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function deleteLeaveTypeHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { code } = req.params;
+    if (!code) {
+      return res.status(400).json({ message: 'Leave type code is required.' });
+    }
+    await deleteLeaveType(code);
+    return res.status(204).send();
+  } catch (error) {
+    return next(error);
+  }
+}
