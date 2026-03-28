@@ -1,18 +1,22 @@
 {
-  "name": "focus-hr-track-backend-postgres",
+  "name": "attendease-backend-postgres",
   "private": true,
   "type": "module",
   "pkg": {
     "assets": [
+      "dist-cjs/**",
       "node_modules/.prisma/**",
       "node_modules/@prisma/client/**",
       "prisma/**"
+    ],
+    "scripts": [
+      "dist-cjs/**/*.js"
     ]
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "build:exe": "npm run prisma:generate && npm run build && pkg -t node18-win-x64 -o dist/attendease-server.exe dist/index.js",
+    "build:exe": "npm run prisma:generate && tsc -p tsconfig.pkg.json && pkg -t node18-win-x64 -o dist/attendease-server.exe dist-cjs/index.js",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

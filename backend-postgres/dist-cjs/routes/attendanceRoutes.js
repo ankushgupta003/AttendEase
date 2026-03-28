@@ -1,0 +1,23 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const multer_1 = __importDefault(require("multer"));
+const attendanceController_js_1 = require("../controllers/attendanceController.js");
+const role_js_1 = require("../middleware/role.js");
+const router = (0, express_1.Router)();
+const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
+router.get("/attendance", attendanceController_js_1.listAttendanceHandler);
+router.get("/attendance/export", (0, role_js_1.requireRole)(["ADMIN", "HR"]), attendanceController_js_1.exportAttendance);
+router.patch("/attendance/:attendanceId", (0, role_js_1.requireRole)(["ADMIN", "HR"]), attendanceController_js_1.updateAttendanceHandler);
+router.post("/attendance/bulk", (0, role_js_1.requireRole)(["ADMIN", "HR"]), attendanceController_js_1.bulkActionHandler);
+router.post("/attendance/upload/preview", (0, role_js_1.requireRole)(["ADMIN", "HR"]), upload.single("file"), attendanceController_js_1.uploadPreview);
+router.post("/attendance/upload", (0, role_js_1.requireRole)(["ADMIN", "HR"]), upload.single("file"), attendanceController_js_1.uploadAttendance);
+router.get("/attendance/template", attendanceController_js_1.downloadAttendanceTemplate);
+router.get("/attendance/finalization", attendanceController_js_1.getFinalizationStatus);
+router.post("/attendance/finalize", (0, role_js_1.requireRole)(["ADMIN", "HR"]), attendanceController_js_1.finalizeMonth);
+router.post("/attendance/lock", (0, role_js_1.requireRole)(["ADMIN", "HR"]), attendanceController_js_1.lockMonth);
+router.post("/attendance/unlock", (0, role_js_1.requireRole)(["ADMIN", "HR"]), attendanceController_js_1.unlockMonth);
+exports.default = router;

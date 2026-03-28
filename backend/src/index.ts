@@ -1,5 +1,7 @@
 import dotenv from "dotenv";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { startServer } from "./server.js";
 import { prisma } from "./lib/prisma.js";
 
@@ -11,6 +13,37 @@ function loadEnv() {
   const resolvedPath = configPath ?? (fs.existsSync(fallbackPath) ? fallbackPath : undefined);
   if (resolvedPath) {
     dotenv.config({ path: resolvedPath, override: true });
+  }
+}
+
+function ensurePrismaEngine() {
+  if (process.platform !== "win32") return;
+  if (process.env.PRISMA_QUERY_ENGINE_LIBRARY) return;
+
+  try {
+    const engineName = "query_engine-windows.dll.node";
+    const targetDir = path.dirname(process.execPath);
+    const targetPath = path.join(targetDir, engineName);
+
+    if (!fs.existsSync(targetPath)) {
+      const snapshotPath = path.join(__dirname, "..", "node_modules", ".prisma", "client", engineName);
+      if (fs.existsSync(snapshotPath)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+        fs.copyFileSync(snapshotPath, targetPath);
+      } else {
+        const fallbackSnapshotPath = path.join(__dirname, "node_modules", ".prisma", "client", engineName);
+        if (fs.existsSync(fallbackSnapshotPath)) {
+          fs.mkdirSync(targetDir, { recursive: true });
+          fs.copyFileSync(fallbackSnapshotPath, targetPath);
+        }
+      }
+    }
+
+    if (fs.existsSync(targetPath)) {
+      process.env.PRISMA_QUERY_ENGINE_LIBRARY = targetPath;
+    }
+  } catch (err) {
+    console.error("Failed to prepare Prisma engine:", err);
   }
 }
 
@@ -28,6 +61,7 @@ async function ensureOvertimeEligibleColumn() {
 
 void (async () => {
   loadEnv();
+  ensurePrismaEngine();
   await ensureOvertimeEligibleColumn();
   startServer();
 })();

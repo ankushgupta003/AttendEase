@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const reportsController_js_1 = require("../controllers/reportsController.js");
+const role_js_1 = require("../middleware/role.js");
+const router = (0, express_1.Router)();
+router.get("/reports/attendance-summary", reportsController_js_1.attendanceSummaryHandler);
+router.get("/reports/salary-sheet", reportsController_js_1.salarySheetHandler);
+router.get("/reports/attendance-summary/export", (0, role_js_1.requireRole)(["ADMIN", "HR"]), reportsController_js_1.exportAttendanceSummary);
+router.get("/reports/salary-sheet/export", (0, role_js_1.requireRole)(["ADMIN", "HR"]), reportsController_js_1.exportSalarySheet);
+exports.default = router;

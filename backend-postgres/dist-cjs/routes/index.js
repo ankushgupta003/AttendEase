@@ -1,0 +1,22 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const attendanceRoutes_js_1 = __importDefault(require("./attendanceRoutes.js"));
+const employeeRoutes_js_1 = __importDefault(require("./employeeRoutes.js"));
+const masterRoutes_js_1 = __importDefault(require("./masterRoutes.js"));
+const reportsRoutes_js_1 = __importDefault(require("./reportsRoutes.js"));
+const dashboardRoutes_js_1 = __importDefault(require("./dashboardRoutes.js"));
+const authRoutes_js_1 = __importDefault(require("./authRoutes.js"));
+const auth_js_1 = require("../middleware/auth.js");
+const router = (0, express_1.Router)();
+router.use(authRoutes_js_1.default);
+router.use(auth_js_1.requireAuth);
+router.use(attendanceRoutes_js_1.default);
+router.use(employeeRoutes_js_1.default);
+router.use(masterRoutes_js_1.default);
+router.use(reportsRoutes_js_1.default);
+router.use(dashboardRoutes_js_1.default);
+exports.default = router;

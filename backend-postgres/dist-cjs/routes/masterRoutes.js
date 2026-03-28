@@ -1,0 +1,25 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const multer_1 = __importDefault(require("multer"));
+const masterController_js_1 = require("../controllers/masterController.js");
+const role_js_1 = require("../middleware/role.js");
+const router = (0, express_1.Router)();
+const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
+router.get("/shifts", masterController_js_1.listShiftsHandler);
+router.post("/shifts", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.createShiftHandler);
+router.patch("/shifts/:shiftId", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.updateShiftHandler);
+router.get("/holidays", masterController_js_1.listHolidaysHandler);
+router.post("/holidays", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.createHolidayHandler);
+router.patch("/holidays/:holidayId", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.updateHolidayHandler);
+router.delete("/holidays/:holidayId", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.deleteHolidayHandler);
+router.post("/holidays/upload", (0, role_js_1.requireRole)(["ADMIN", "HR"]), upload.single("file"), masterController_js_1.uploadHolidayHandler);
+router.get("/holidays/template", masterController_js_1.downloadHolidayTemplate);
+router.get("/leave-types", masterController_js_1.listLeaveTypesHandler);
+router.post("/leave-types", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.upsertLeaveTypeHandler);
+router.patch("/leave-types", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.upsertLeaveTypeHandler);
+router.delete("/leave-types/:code", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.deleteLeaveTypeHandler);
+exports.default = router;

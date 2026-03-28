@@ -9,8 +9,8 @@ export type StartServerOptions = {
 
 export function startServer(options: StartServerOptions = {}) {
   const port = options.port ?? Number(process.env.PORT ?? 5000);
-  const server = app.listen(port, () => {
-    console.log(`Focus HR Track API running on port ${port}`);
+  const server = app.listen(port, "0.0.0.0", () => {
+    console.log(`AttendEase API running on port ${port}`);
     options.onListen?.(port);
   });
 

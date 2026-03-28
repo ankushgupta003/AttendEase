@@ -59,7 +59,7 @@ function ensureRuntimeConfig() {
 async function ensureDatabase() {
   const userDataDir = app.getPath("userData");
   const dbDir = path.join(userDataDir, "db");
-  const dbPath = path.join(dbDir, "focus-hr-track.db");
+  const dbPath = path.join(dbDir, "attendease.db");
 
   fs.mkdirSync(dbDir, { recursive: true });
 

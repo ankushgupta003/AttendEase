@@ -44,14 +44,17 @@ Section "Install"
   FileWrite $0 "PORT=5000$\r$\n"
   FileClose $0
 
-  ; Install Windows service (requires Node.js)
-  ExecWait 'sc create "${SERVICE_NAME}" binPath= "\"$INSTDIR\\attendease-server.exe\" --config \"$INSTDIR\\config.env\"" start= auto'
-  ExecWait 'sc start "${SERVICE_NAME}"'
+  ; Create a hidden runner script to avoid a visible cmd window
+  File "run-server.vbs"
+
+  ; Create a scheduled task to run the server at logon (hidden)
+  ExecWait 'schtasks /Create /TN "AttendEaseServer" /TR "wscript.exe \"$INSTDIR\\run-server.vbs\"" /SC ONLOGON /RL HIGHEST /F'
+  ExecWait 'schtasks /Run /TN "AttendEaseServer"'
 SectionEnd
 
 Section "Uninstall"
-  ExecWait 'sc stop "${SERVICE_NAME}"'
-  ExecWait 'sc delete "${SERVICE_NAME}"'
+  ExecWait 'schtasks /Delete /TN "AttendEaseServer" /F'
+  Delete "$INSTDIR\\run-server.vbs"
   Delete "$INSTDIR\\config.env"
   RMDir /r "$INSTDIR"
   DeleteRegKey HKLM "Software\\AttendEaseServer"

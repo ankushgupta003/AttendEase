@@ -15,6 +15,11 @@ This creates a **Windows-only server installer** that:
 3. Run NSIS on:
    - `server-installer/installer.nsi`
 
+## Startup Task (Default)
+The installer registers a Windows **Scheduled Task** named `AttendEaseServer`
+to start the backend on boot. This avoids Service Control errors (1053)
+for apps that are not true Windows services.
+
 ## Configure DB
 Edit the generated `config.env` after install:
 ```
