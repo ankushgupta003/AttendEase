@@ -101,11 +101,19 @@ async function startBackend() {
   serverModule.startServer({ port: Number(process.env.PORT ?? DEFAULT_PORT) });
 }
 
+function resolveWindowIconPath() {
+  return isDev
+    ? path.join(process.cwd(), "public", "favicon.ico")
+    : path.join(process.resourcesPath, "favicon.ico");
+}
+
 async function createWindow() {
+  const iconPath = resolveWindowIconPath();
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     show: false,
+    icon: iconPath,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false
@@ -187,6 +195,10 @@ async function setupUpdater(mainWindow?: BrowserWindow) {
 }
 
 app.whenReady().then(async () => {
+  if (process.platform === "win32") {
+    app.setAppUserModelId("com.attendease.app");
+  }
+
   await startBackend();
   const mainWindow = await createWindow();
   await setupUpdater(mainWindow);
@@ -217,6 +229,12 @@ app.whenReady().then(async () => {
   };
 
   const template: MenuItemConstructorOptions[] = [
+    {
+      label: "File",
+      submenu: [
+        { role: "quit" }
+      ]
+    },
     {
       label: APP_NAME,
       submenu: [
@@ -253,6 +271,12 @@ app.whenReady().then(async () => {
       submenu: [
         { role: "minimize" },
         { role: "close" }
+      ]
+    },
+    {
+      label: "Help",
+      submenu: [
+        updateMenuItem
       ]
     }
   ];
