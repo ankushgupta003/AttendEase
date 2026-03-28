@@ -17,6 +17,7 @@
     "build:db": "npm --prefix backend run prisma:template",
     "build:desktop": "npm run build:renderer && npm run build:backend && npm run build:main && npm run build:db && electron-builder",
     "build:desktop:publish": "npm run build:renderer && npm run build:backend && npm run build:main && npm run build:db && electron-builder --publish always",
+    "build:desktop:publish:ci": "npm run build:renderer && npm run build:backend && npm run build:main && npm run build:db && npm --prefix backend prune --omit=dev && electron-builder --publish always",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
