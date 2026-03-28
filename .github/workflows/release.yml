@@ -46,7 +46,7 @@ jobs:
         run: npm --prefix backend-postgres run build:exe
 
       - name: Build Server Installer
-        run: '"C:\Program Files (x86)\NSIS\makensis.exe" "server-installer\installer.nsi"'
+        run: '& "C:\Program Files (x86)\NSIS\makensis.exe" "server-installer\installer.nsi"'
 
       - name: Upload Server Installer to Release
         uses: softprops/action-gh-release@v2
