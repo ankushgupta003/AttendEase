@@ -16,6 +16,7 @@ model Employee {
   department  String
   shiftId     String?
   active      Boolean      @default(true)
+  overtimeEligible Boolean  @default(true)
   email       String?
   phone       String?
   designation String?

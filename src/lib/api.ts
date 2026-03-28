@@ -1,6 +1,12 @@
 import { getAuthToken } from "./auth";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
+const DEFAULT_API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
+
+function getApiBase() {
+  if (typeof window === "undefined") return DEFAULT_API_BASE;
+  const saved = window.localStorage.getItem("apiBaseUrl");
+  return saved && saved.trim().length ? saved.trim() : DEFAULT_API_BASE;
+}
 
 type QueryValue = string | number | boolean | undefined | null;
 
@@ -43,14 +49,14 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export async function apiGet<T>(path: string, params?: Record<string, QueryValue>) {
-  const res = await fetch(`${API_BASE}${path}${toQuery(params)}`, {
+  const res = await fetch(`${getApiBase()}${path}${toQuery(params)}`, {
     headers: authHeader()
   });
   return handleResponse<T>(res);
 }
 
 export async function apiPost<T>(path: string, body?: unknown) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeader() },
     body: body ? JSON.stringify(body) : undefined
@@ -59,7 +65,7 @@ export async function apiPost<T>(path: string, body?: unknown) {
 }
 
 export async function apiPatch<T>(path: string, body?: unknown) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...authHeader() },
     body: body ? JSON.stringify(body) : undefined
@@ -68,12 +74,12 @@ export async function apiPatch<T>(path: string, body?: unknown) {
 }
 
 export async function apiDelete<T>(path: string) {
-  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE", headers: authHeader() });
+  const res = await fetch(`${getApiBase()}${path}`, { method: "DELETE", headers: authHeader() });
   return handleResponse<T>(res);
 }
 
 export async function apiPostForm<T>(path: string, form: FormData) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     method: "POST",
     headers: authHeader(),
     body: form
@@ -82,7 +88,7 @@ export async function apiPostForm<T>(path: string, form: FormData) {
 }
 
 export async function apiDownload(path: string, params?: Record<string, QueryValue>) {
-  const res = await fetch(`${API_BASE}${path}${toQuery(params)}`, {
+  const res = await fetch(`${getApiBase()}${path}${toQuery(params)}`, {
     headers: authHeader()
   });
   if (!res.ok) {

@@ -1,7 +1,7 @@
 {
   "name": "attendease",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "main": "electron/dist/main.cjs",
   "scripts": {
@@ -18,6 +18,9 @@
     "build:desktop": "npm run build:renderer && npm run build:backend && npm run build:main && npm run build:db && electron-builder",
     "build:desktop:publish": "npm run build:renderer && npm run build:backend && npm run build:main && npm run build:db && electron-builder --publish always",
     "build:desktop:publish:ci": "npm run build:renderer && npm run build:backend && npm run build:main && npm run build:db && npm --prefix backend prune --omit=dev && electron-builder --publish always",
+    "build:client": "npm run build:desktop",
+    "build:server:backend": "npm --prefix backend-postgres install && npm --prefix backend-postgres run build:exe",
+    "build:server:installer": "echo \"Run NSIS with server-installer\\\\installer.nsi\"",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -73,6 +76,7 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
+    "electron-updater": "^6.2.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -90,7 +94,6 @@
     "cross-env": "^7.0.3",
     "electron": "^34.2.0",
     "electron-builder": "^24.13.3",
-    "electron-updater": "^6.2.1",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
@@ -112,6 +115,16 @@
       "icon": "public/favicon.ico",
       "target": "nsis",
       "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AttendEase",
+      "runAfterFinish": true
     },
     "publish": [
       {

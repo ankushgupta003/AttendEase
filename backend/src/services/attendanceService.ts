@@ -508,12 +508,20 @@ export async function processScheduleBlocks(blocks: ParsedScheduleBlock[]) {
 
       if (holiday) {
         status = AttendanceStatus.HOLIDAY;
-        inTime = null;
-        outTime = null;
+        workingMinutes = computeWorkingMinutes(entry.date, inTime, outTime);
+        if (!workingMinutes || workingMinutes <= 0) {
+          inTime = null;
+          outTime = null;
+          workingMinutes = null;
+        }
       } else if (isSunday(entry.date)) {
         status = AttendanceStatus.WEEK_OFF;
-        inTime = null;
-        outTime = null;
+        workingMinutes = computeWorkingMinutes(entry.date, inTime, outTime);
+        if (!workingMinutes || workingMinutes <= 0) {
+          inTime = null;
+          outTime = null;
+          workingMinutes = null;
+        }
       } else if (leave) {
         status = AttendanceStatus.LEAVE;
         inTime = null;
@@ -871,6 +879,7 @@ export async function createEmployee(payload: {
   department: string;
   shiftName?: string;
   active?: boolean;
+  overtimeEligible?: boolean;
   email?: string;
   phone?: string;
   designation?: string;
@@ -883,6 +892,7 @@ export async function createEmployee(payload: {
       department: payload.department,
       shiftId: shift.id,
       active: payload.active ?? true,
+      overtimeEligible: payload.overtimeEligible ?? true,
       email: payload.email,
       phone: payload.phone,
       designation: payload.designation
@@ -896,6 +906,7 @@ export async function updateEmployee(employeeId: string, payload: {
   department?: string;
   code?: string;
   active?: boolean;
+  overtimeEligible?: boolean;
   email?: string;
   phone?: string;
   designation?: string;
@@ -1024,6 +1035,7 @@ export async function getAttendanceSummary(month: string, department?: string) {
     holidayDays: number;
     totalMinutes: number;
     overtimeMinutes: number;
+    overtimeEligible: boolean;
   }>();
 
   for (const row of rows) {
@@ -1042,7 +1054,8 @@ export async function getAttendanceSummary(month: string, department?: string) {
       sundayDays: 0,
       holidayDays: 0,
       totalMinutes: 0,
-      overtimeMinutes: 0
+      overtimeMinutes: 0,
+      overtimeEligible: row.employee.overtimeEligible ?? false
     };
 
     if (row.status === AttendanceStatus.PRESENT || row.status === AttendanceStatus.LATE || row.status === AttendanceStatus.HALF_DAY) {
@@ -1056,9 +1069,13 @@ export async function getAttendanceSummary(month: string, department?: string) {
     if (row.status === AttendanceStatus.HOLIDAY) current.holidayDays += 1;
     if (row.workingMinutes) current.totalMinutes += row.workingMinutes;
     if (row.workingMinutes) {
-      const shiftMinutes = computeShiftMinutes(dayjs(row.date), row.employee.shift ?? null);
-      if (shiftMinutes != null && row.workingMinutes > shiftMinutes) {
-        current.overtimeMinutes += (row.workingMinutes - shiftMinutes);
+      if (row.status === AttendanceStatus.WEEK_OFF || row.status === AttendanceStatus.HOLIDAY) {
+        current.overtimeMinutes += row.workingMinutes;
+      } else {
+        const shiftMinutes = computeShiftMinutes(dayjs(row.date), row.employee.shift ?? null);
+        if (shiftMinutes != null && row.workingMinutes > shiftMinutes) {
+          current.overtimeMinutes += (row.workingMinutes - shiftMinutes);
+        }
       }
     }
 

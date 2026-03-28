@@ -108,7 +108,17 @@ export default function EmployeesPage() {
     await fetchAttendanceSummary(emp.id, selectedMonth, 'monthly');
   };
   const openNew = () => {
-    setEditEmp({ id: String(Date.now()), code: '', name: '', department: 'Engineering', shift: 'General', active: true, email: '', designation: '' });
+    setEditEmp({
+      id: String(Date.now()),
+      code: '',
+      name: '',
+      department: 'Engineering',
+      shift: 'General',
+      active: true,
+      overtimeEligible: true,
+      email: '',
+      designation: ''
+    });
     setIsNew(true);
   };
 
@@ -121,6 +131,7 @@ export default function EmployeesPage() {
         department: editEmp.department,
         shiftName: editEmp.shift,
         active: editEmp.active,
+        overtimeEligible: editEmp.overtimeEligible,
         email: editEmp.email,
         designation: editEmp.designation
       });
@@ -131,6 +142,7 @@ export default function EmployeesPage() {
         name: editEmp.name,
         department: editEmp.department,
         active: editEmp.active,
+        overtimeEligible: editEmp.overtimeEligible,
         email: editEmp.email,
         designation: editEmp.designation
       });
@@ -280,6 +292,10 @@ export default function EmployeesPage() {
               <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
                 <Label>Active Status</Label>
                 <Switch checked={editEmp.active} onCheckedChange={v => setEditEmp(p => p && ({ ...p, active: v }))} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
+                <Label>Overtime Eligible</Label>
+                <Switch checked={editEmp.overtimeEligible} onCheckedChange={v => setEditEmp(p => p && ({ ...p, overtimeEligible: v }))} />
               </div>
             </div>
           )}

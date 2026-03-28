@@ -8,6 +8,7 @@ export interface Employee {
   department: string;
   shift: string;
   active: boolean;
+  overtimeEligible: boolean;
   email?: string;
   phone?: string;
   designation?: string;

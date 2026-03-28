@@ -8,6 +8,7 @@ type EmployeeDto = {
   department: string;
   shift: string;
   active: boolean;
+  overtimeEligible: boolean;
   email?: string | null;
   phone?: string | null;
   designation?: string | null;
@@ -21,6 +22,7 @@ function toEmployeeDto(employee: any): EmployeeDto {
     department: employee.department,
     shift: employee.shift?.name ?? "General",
     active: employee.active,
+    overtimeEligible: employee.overtimeEligible ?? false,
     email: employee.email ?? null,
     phone: employee.phone ?? null,
     designation: employee.designation ?? null
@@ -38,17 +40,18 @@ export async function listEmployeesHandler(req: Request, res: Response, next: Ne
 
 export async function createEmployeeHandler(req: Request, res: Response, next: NextFunction) {
   try {
-    const { code, name, department, shiftName, active, email, phone, designation } = req.body as {
+    const { code, name, department, shiftName, active, overtimeEligible, email, phone, designation } = req.body as {
       code: string;
       name: string;
       department: string;
       shiftName?: string;
       active?: boolean;
+      overtimeEligible?: boolean;
       email?: string;
       phone?: string;
       designation?: string;
     };
-    const created = await createEmployee({ code, name, department, shiftName, active, email, phone, designation });
+    const created = await createEmployee({ code, name, department, shiftName, active, overtimeEligible, email, phone, designation });
     return res.status(201).json(toEmployeeDto(created));
   } catch (error) {
     return next(error);

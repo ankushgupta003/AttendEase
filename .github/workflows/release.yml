@@ -31,7 +31,24 @@ jobs:
       - name: Install Backend Dependencies
         run: npm --prefix backend ci
 
+      - name: Install Server Backend Dependencies
+        run: npm --prefix backend-postgres ci
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
       - name: Build And Publish
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: npm run build:desktop:publish:ci
+
+      - name: Build Server EXE
+        run: npm --prefix backend-postgres run build:exe
+
+      - name: Build Server Installer
+        run: '"C:\Program Files (x86)\NSIS\makensis.exe" "server-installer\installer.nsi"'
+
+      - name: Upload Server Installer to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: server-installer/AttendEase-Server-Setup.exe

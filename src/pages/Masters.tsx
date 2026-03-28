@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Pencil, Trash2, Upload, Download } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, Download, Database } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -21,6 +22,9 @@ export default function MastersPage() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [apiMode, setApiMode] = useState<'local' | 'lan'>('local');
+  const [apiBaseUrl, setApiBaseUrl] = useState('http://localhost:5000/api');
+  const [testingConnection, setTestingConnection] = useState(false);
 
   const [editShift, setEditShift] = useState<Shift | null>(null);
   const [editHoliday, setEditHoliday] = useState<Holiday | null>(null);
@@ -36,6 +40,13 @@ export default function MastersPage() {
     apiGet<Shift[]>("/shifts").then(setShifts).catch(() => setShifts([]));
     apiGet<Holiday[]>("/holidays").then(setHolidays).catch(() => setHolidays([]));
     apiGet<LeaveType[]>("/leave-types").then(setLeaveTypes).catch(() => setLeaveTypes([]));
+  }, []);
+
+  useEffect(() => {
+    const savedMode = window.localStorage.getItem("apiMode") as 'local' | 'lan' | null;
+    const savedBase = window.localStorage.getItem("apiBaseUrl");
+    if (savedMode === 'lan') setApiMode('lan');
+    if (savedBase && savedBase.trim()) setApiBaseUrl(savedBase.trim());
   }, []);
 
   const saveShift = async () => {
@@ -123,6 +134,33 @@ export default function MastersPage() {
     link.remove();
   };
 
+  const saveConnection = () => {
+    const trimmed = apiBaseUrl.trim();
+    if (!trimmed) {
+      toast({ title: 'Invalid URL', description: 'Please enter a valid API base URL.', variant: 'destructive' });
+      return;
+    }
+    window.localStorage.setItem("apiMode", apiMode);
+    window.localStorage.setItem("apiBaseUrl", trimmed);
+    toast({ title: 'Connection saved', description: 'Settings saved. Reloading to apply.' });
+    window.location.reload();
+  };
+
+  const testConnection = async () => {
+    setTestingConnection(true);
+    try {
+      const base = apiBaseUrl.trim();
+      const url = base.endsWith("/api") ? base.slice(0, -4) : base;
+      const res = await fetch(`${url}/health`);
+      if (!res.ok) throw new Error(`Status ${res.status}`);
+      toast({ title: 'Connection successful', description: 'Server is reachable.' });
+    } catch (error) {
+      toast({ title: 'Connection failed', description: 'Unable to reach the server.', variant: 'destructive' });
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
   return (
     <AppLayout title="Master Data" selectedMonth={selectedMonth} onMonthChange={setSelectedMonth}>
       <div className="space-y-4">
@@ -133,6 +171,7 @@ export default function MastersPage() {
             <TabsTrigger value="shifts" className="text-xs">Shifts</TabsTrigger>
             <TabsTrigger value="holidays" className="text-xs">Holidays</TabsTrigger>
             <TabsTrigger value="leave" className="text-xs">Leave Types</TabsTrigger>
+            <TabsTrigger value="connection" className="text-xs">Connection</TabsTrigger>
           </TabsList>
 
           {/* Shifts Tab */}
@@ -269,6 +308,59 @@ export default function MastersPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Connection Tab */}
+          <TabsContent value="connection">
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-semibold">Database Connection</CardTitle>
+                  <Database className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Mode</Label>
+                    <Select value={apiMode} onValueChange={(v: any) => setApiMode(v)}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="local" className="text-xs">Local (SQLite)</SelectItem>
+                        <SelectItem value="lan" className="text-xs">LAN Server (PostgreSQL)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>API Base URL</Label>
+                    <Input
+                      value={apiBaseUrl}
+                      onChange={(e) => setApiBaseUrl(e.target.value)}
+                      className="h-8 text-xs"
+                      placeholder="http://SERVER_IP:5000/api"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button size="sm" className="h-8 text-xs" onClick={saveConnection}>
+                    Save Connection
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={testConnection}
+                    disabled={testingConnection}
+                  >
+                    {testingConnection ? 'Testing…' : 'Test Connection'}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    For LAN mode, point the API URL to the server PC running the backend with PostgreSQL.
+                  </p>
                 </div>
               </CardContent>
             </Card>

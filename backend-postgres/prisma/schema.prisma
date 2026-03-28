@@ -1,0 +1,109 @@
+// Prisma schema for Focus HR Track
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Employee {
+  id          String       @id @default(uuid())
+  code        String       @unique
+  name        String
+  department  String
+  shiftId     String?
+  active      Boolean      @default(true)
+  overtimeEligible Boolean  @default(true)
+  email       String?
+  phone       String?
+  designation String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  shift      Shift?       @relation(fields: [shiftId], references: [id])
+  attendance Attendance[]
+  leaves     Leave[]
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  role         String   @default("HR")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Shift {
+  id           String     @id @default(uuid())
+  name         String     @unique
+  startTime    String
+  endTime      String
+  graceMinutes Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  employees Employee[]
+}
+
+model Attendance {
+  id             String            @id @default(uuid())
+  employeeId     String
+  employee       Employee          @relation(fields: [employeeId], references: [id])
+  date           DateTime
+  inTime         String?
+  outTime        String?
+  workingMinutes Int?
+  status         String
+  isLate         Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([date])
+}
+
+model Holiday {
+  id        String      @id @default(uuid())
+  name      String
+  date      DateTime    @unique
+  type      String      @default("NATIONAL")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model LeaveType {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  paidLeave Boolean  @default(true)
+  maxDays   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Leave {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  fromDate   DateTime
+  toDate     DateTime
+  typeCode   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([employeeId, fromDate, toDate])
+}
+
+model AttendanceFinalization {
+  id          String             @id @default(uuid())
+  month       String             @unique
+  status      String             @default("DRAFT")
+  finalizedAt DateTime?
+  lockedAt    DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}

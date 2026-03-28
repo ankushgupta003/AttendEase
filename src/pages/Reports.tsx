@@ -22,6 +22,7 @@ type SummaryRow = {
   totalHrs: string;
   overtimeHrs: string;
   overtimeMinutes: number;
+  overtimeEligible: boolean;
   paidLeaveDays: number;
   sundayDays: number;
   payableSundays: number;
@@ -41,6 +42,7 @@ export default function ReportsPage() {
   const [summaryData, setSummaryData] = useState<SummaryRow[]>([]);
   const [salaryData, setSalaryData] = useState<SalaryRow[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
+  const [overtimeVisible, setOvertimeVisible] = useState<Record<string, boolean>>({});
 
   const formatPaidDays = (value: number) => Number.isInteger(value) ? value : value.toFixed(1);
   const formatMinutes = (minutes: number) => {
@@ -56,6 +58,10 @@ export default function ReportsPage() {
     apiGet<SalaryRow[]>("/reports/salary-sheet", { month: selectedMonth, department })
       .then(setSalaryData)
       .catch(() => setSalaryData([]));
+  }, [selectedMonth, department]);
+
+  useEffect(() => {
+    setOvertimeVisible({});
   }, [selectedMonth, department]);
 
   useEffect(() => {
@@ -84,6 +90,7 @@ export default function ReportsPage() {
     totalHrs: "0:00",
     overtimeHrs: "0:00",
     overtimeMinutes: 0,
+    overtimeEligible: false,
     paidLeaveDays: 0,
     sundayDays: 0,
     payableSundays: 0,
@@ -102,6 +109,19 @@ export default function ReportsPage() {
     netSalary: 0,
     ...row
   }));
+
+  const getRowKey = (row: SummaryRow) => row.code || row.name;
+
+  const toggleOvertime = (key: string) => {
+    setOvertimeVisible((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const visibleOvertimeMinutes = filtered.reduce((sum, row) => {
+    if (row.overtimeEligible) return sum + (row.overtimeMinutes ?? 0);
+    const key = getRowKey(row);
+    if (!overtimeVisible[key]) return sum;
+    return sum + (row.overtimeMinutes ?? 0);
+  }, 0);
 
   return (
     <AppLayout title="Reports" selectedMonth={selectedMonth} onMonthChange={setSelectedMonth}>
@@ -202,7 +222,7 @@ export default function ReportsPage() {
                           <td colSpan={17} className="py-8 text-center text-sm text-muted-foreground">No attendance data found for selected month/department.</td>
                         </tr>
                       ) : filtered.map(row => (
-                        <tr key={row.code || `${row.name}-${Math.random()}`} className="border-b border-border/50 last:border-0 hover:bg-muted/20">
+                        <tr key={getRowKey(row) || `${row.name}-${Math.random()}`} className="border-b border-border/50 last:border-0 hover:bg-muted/20">
                           <td className="px-4 py-3 font-mono text-muted-foreground">{row.code}</td>
                           <td className="px-4 py-3 font-medium">{row.name}</td>
                           <td className="px-4 py-3 text-muted-foreground">{row.dept}</td>
@@ -225,7 +245,36 @@ export default function ReportsPage() {
                           <td className="px-4 py-3 font-medium">{row.payableHolidays ?? 0}</td>
                           <td className="px-4 py-3 font-semibold">{formatPaidDays(row.totalPaidDays ?? 0)}</td>
                           <td className="px-4 py-3 font-mono font-medium">{row.totalHrs}</td>
-                          <td className="px-4 py-3 font-mono font-medium">{row.overtimeHrs}</td>
+                          <td className="px-4 py-3">
+                            {row.overtimeEligible ? (
+                              <span className="font-mono font-medium">{row.overtimeHrs}</span>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                {overtimeVisible[getRowKey(row)] ? (
+                                  <>
+                                    <span className="font-mono font-medium">{row.overtimeHrs}</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-[10px]"
+                                      onClick={() => toggleOvertime(getRowKey(row))}
+                                    >
+                                      Hide
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-[10px]"
+                                    onClick={() => toggleOvertime(getRowKey(row))}
+                                  >
+                                    Show overtime
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -245,7 +294,7 @@ export default function ReportsPage() {
                         <td className="px-4 py-2.5 font-bold">{filtered.reduce((a, r) => a + (r.payableHolidays ?? 0), 0)}</td>
                         <td className="px-4 py-2.5 font-bold">{formatPaidDays(filtered.reduce((a, r) => a + (r.totalPaidDays ?? 0), 0))}</td>
                         <td className="px-4 py-2.5"></td>
-                        <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(filtered.reduce((a, r) => a + (r.overtimeMinutes ?? 0), 0))}</td>
+                        <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(visibleOvertimeMinutes)}</td>
                       </tr>
                     </tfoot>
                     </table>

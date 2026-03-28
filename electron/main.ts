@@ -201,9 +201,8 @@ app.whenReady().then(async () => {
 
   await startBackend();
   const mainWindow = await createWindow();
-  await setupUpdater(mainWindow);
 
-  const updateMenuItem: MenuItemConstructorOptions = {
+  const createUpdateMenuItem = (): MenuItemConstructorOptions => ({
     label: "Check for Updates",
     click: async () => {
       if (isDev) {
@@ -214,8 +213,8 @@ app.whenReady().then(async () => {
         });
         return;
       }
-      const { autoUpdater } = await import("electron-updater");
       try {
+        const { autoUpdater } = await import("electron-updater");
         await autoUpdater.checkForUpdates();
       } catch (err) {
         await dialog.showMessageBox(mainWindow, {
@@ -226,19 +225,24 @@ app.whenReady().then(async () => {
         });
       }
     }
-  };
+  });
+
+  const createAboutMenuItem = (): MenuItemConstructorOptions => ({
+    label: "About AttendEase",
+    click: async () => {
+      await dialog.showMessageBox(mainWindow, {
+        type: "info",
+        title: "AttendEase",
+        message: "AttendEase",
+        detail: "Smart attendance. Accurate payroll."
+      });
+    }
+  });
 
   const template: MenuItemConstructorOptions[] = [
     {
       label: "File",
       submenu: [
-        { role: "quit" }
-      ]
-    },
-    {
-      label: APP_NAME,
-      submenu: [
-        updateMenuItem,
         { role: "quit" }
       ]
     },
@@ -276,12 +280,31 @@ app.whenReady().then(async () => {
     {
       label: "Help",
       submenu: [
-        updateMenuItem
+        createUpdateMenuItem(),
+        createAboutMenuItem()
       ]
     }
   ];
 
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  if (process.platform !== "win32") {
+    template.unshift({
+      label: APP_NAME,
+      submenu: [
+        createUpdateMenuItem(),
+        { role: "quit" }
+      ]
+    });
+  }
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+  if (process.platform === "win32") {
+    mainWindow.setMenu(menu);
+  }
+
+  setupUpdater(mainWindow).catch((err) => {
+    console.error("Updater init failed:", err);
+  });
 });
 
 app.on("window-all-closed", () => {
