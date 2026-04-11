@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import {
-  Upload, Download, CheckCircle2, Lock, AlertTriangle,
-  Pencil, ChevronUp, ChevronDown, Users
-} from 'lucide-react';
+  UploadSimple, DownloadSimple, CheckCircle, Lock, Warning,
+  PencilSimple, CaretUp, CaretDown, Users
+} from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -64,13 +64,17 @@ export default function AttendancePage() {
   };
 
   const SortIcon = ({ k }: { k: SortKey }) => {
-    if (sortKey !== k) return <ChevronUp className="h-3 w-3 text-muted-foreground/40" />;
-    return sortDir === 'asc' ? <ChevronUp className="h-3 w-3 text-primary" /> : <ChevronDown className="h-3 w-3 text-primary" />;
+    if (sortKey !== k) return <CaretUp className="h-3 w-3 text-muted-foreground/40" />;
+    return sortDir === 'asc' ? <CaretUp className="h-3 w-3 text-primary" /> : <CaretDown className="h-3 w-3 text-primary" />;
   };
 
   const toggleSelect = (id: string) => {
     const s = new Set(selected);
-    s.has(id) ? s.delete(id) : s.add(id);
+    if (s.has(id)) {
+      s.delete(id);
+    } else {
+      s.add(id);
+    }
     setSelected(s);
   };
 
@@ -94,7 +98,7 @@ export default function AttendancePage() {
 
   const finStatusConfig = {
     Draft: { label: 'Draft', className: 'bg-muted text-muted-foreground', icon: null },
-    Finalized: { label: 'Finalized', className: 'bg-status-present-bg text-status-present', icon: CheckCircle2 },
+    Finalized: { label: 'Finalized', className: 'bg-status-present-bg text-status-present', icon: CheckCircle },
     Locked: { label: 'Locked', className: 'bg-status-absent-bg text-status-absent', icon: Lock },
   };
   const fin = finStatusConfig[finStatus];
@@ -171,12 +175,12 @@ export default function AttendancePage() {
           <div className="flex items-center gap-2">
             <h2 className="text-base font-semibold">Monthly Attendance</h2>
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${fin.className}`}>
-              {fin.icon && <fin.icon className="h-3 w-3" />}
+              {fin.icon && <fin.icon className="h-3 w-3" weight="duotone" />}
               {fin.label}
             </span>
             {finStatus !== 'Draft' && (
               <span className="flex items-center gap-1 text-xs text-destructive">
-                <AlertTriangle className="h-3 w-3" />
+                <Warning className="h-3 w-3" weight="duotone" />
                 Editing disabled
               </span>
             )}
@@ -185,14 +189,14 @@ export default function AttendancePage() {
           <div className="flex items-center gap-2 flex-wrap">
             {selected.size > 0 && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Users className="h-3.5 w-3.5" />{selected.size} selected
+                <Users className="h-3.5 w-3.5" weight="duotone" />{selected.size} selected
               </span>
             )}
             <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setBulkOpen(true)}>
               Bulk Actions
             </Button>
             <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => navigate("/upload")}>
-              <Upload className="h-3.5 w-3.5" /> Upload
+              <UploadSimple className="h-3.5 w-3.5" /> Upload
             </Button>
             <Button
               variant="outline"
@@ -209,11 +213,11 @@ export default function AttendancePage() {
                 link.remove();
               }}
             >
-              <Download className="h-3.5 w-3.5" /> Export
+              <DownloadSimple className="h-3.5 w-3.5" /> Export
             </Button>
             {finStatus === 'Draft' && (
               <Button size="sm" className="h-8 text-xs gap-1.5" onClick={finalizeMonth}>
-                <CheckCircle2 className="h-3.5 w-3.5" /> Finalize Month
+                <CheckCircle className="h-3.5 w-3.5" /> Finalize Month
               </Button>
             )}
             {finStatus === 'Finalized' && (
@@ -232,7 +236,7 @@ export default function AttendancePage() {
         {/* Exception notice */}
         {exceptionCount > 0 && !exceptionsOnly && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-status-missing-bg border border-status-missing/20 text-xs text-status-missing">
-            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+            <Warning className="h-3.5 w-3.5 flex-shrink-0" weight="duotone" />
             <span><strong>{exceptionCount}</strong> exceptions found (missing punches, late, absences).</span>
             <button onClick={() => setExceptionsOnly(true)} className="ml-auto underline font-medium hover:no-underline">
               Show exceptions only →
@@ -258,7 +262,7 @@ export default function AttendancePage() {
         {/* Table */}
         <div className="rounded-lg border bg-card">
           <div className="overflow-x-auto max-h-[calc(100vh-320px)]">
-            <Table className="min-w-[980px] whitespace-nowrap">
+            <Table className="min-w-[980px] whitespace-nowrap data-grid">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   <TableHead className="w-10 pl-4">
@@ -340,7 +344,7 @@ export default function AttendancePage() {
                           disabled={finStatus !== 'Draft'}
                           onClick={() => setEditRecord(record)}
                         >
-                          <Pencil className="h-3.5 w-3.5" />
+                          <PencilSimple className="h-3.5 w-3.5" />
                         </Button>
                       </TableCell>
                     </TableRow>

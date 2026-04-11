@@ -8,9 +8,34 @@ import {
   bulkAction,
   processScheduleBlocks,
   getFinalization,
-  setFinalization
+  setFinalization,
+  getLockedMonths
 } from "../services/attendanceService.js";
 import { dayjs } from "../utils/date.js";
+
+function collectMonths(blocks: Array<{ entries: Array<{ date: dayjs.Dayjs }>; rangeStart?: dayjs.Dayjs | null; rangeEnd?: dayjs.Dayjs | null; }>) {
+  const months = new Set<string>();
+  for (const block of blocks) {
+    if (block.entries.length) {
+      block.entries.forEach((entry) => months.add(entry.date.format("YYYY-MM")));
+      continue;
+    }
+    if (block.rangeStart && block.rangeEnd) {
+      let cursor = block.rangeStart.startOf("month");
+      const last = block.rangeEnd.endOf("month");
+      while (cursor.isSameOrBefore(last, "month")) {
+        months.add(cursor.format("YYYY-MM"));
+        cursor = cursor.add(1, "month");
+      }
+    }
+  }
+  return Array.from(months);
+}
+
+function buildLockedWarning(lockedMonths: string[]) {
+  if (!lockedMonths.length) return null;
+  return `Warning: month(s) ${lockedMonths.join(", ")} are locked. Upload will be blocked for these months.`;
+}
 
 export async function listAttendanceHandler(req: Request, res: Response, next: NextFunction) {
   try {
@@ -56,14 +81,15 @@ export async function updateAttendanceHandler(req: Request, res: Response, next:
 
 export async function bulkActionHandler(req: Request, res: Response, next: NextFunction) {
   try {
-    const { action, employeeCodes, dateFrom, dateTo, shiftName } = req.body as {
+    const { action, employeeCodes, dateFrom, dateTo, shiftName, leaveTypeCode } = req.body as {
       action: "mark-leave" | "mark-present" | "change-shift" | "fix-missing";
       employeeCodes: string[];
       dateFrom: string;
       dateTo: string;
       shiftName?: string;
+      leaveTypeCode?: string;
     };
-    const result = await bulkAction({ action, employeeCodes, dateFrom, dateTo, shiftName });
+    const result = await bulkAction({ action, employeeCodes, dateFrom, dateTo, shiftName, leaveTypeCode });
     return res.json(result);
   } catch (error) {
     return next(error);
@@ -76,6 +102,9 @@ export async function uploadPreview(req: Request, res: Response, next: NextFunct
       return res.status(400).json({ message: "No file uploaded." });
     }
     const blocks = parseScheduleWorkbook(req.file.buffer);
+    const months = collectMonths(blocks);
+    const lockedMonths = await getLockedMonths(months);
+    const warning = buildLockedWarning(lockedMonths);
     const holidays = await listHolidays();
     const holidaySet = new Set(holidays.map((h) => dayjs(h.date).format("YYYY-MM-DD")));
 
@@ -101,7 +130,9 @@ export async function uploadPreview(req: Request, res: Response, next: NextFunct
     return res.json({
       preview,
       totalRows: flattened.length,
-      missingPunch: flattened.filter((row) => !row.inTime || !row.outTime).length
+      missingPunch: flattened.filter((row) => !row.inTime || !row.outTime).length,
+      warning,
+      lockedMonths
     });
   } catch (error) {
     return next(error);
@@ -118,8 +149,13 @@ export async function uploadAttendance(req: Request, res: Response, next: NextFu
       return res.status(400).json({ message: "No employee blocks found in file." });
     }
 
+    const months = collectMonths(blocks);
+    const lockedMonths = await getLockedMonths(months);
+    if (lockedMonths.length) {
+      return res.status(423).send(`Upload blocked: month(s) ${lockedMonths.join(", ")} are locked.`);
+    }
     const summary = await processScheduleBlocks(blocks);
-    return res.json({ message: "Attendance processed successfully.", summary });
+    return res.json({ message: "Attendance processed successfully.", summary, lockedMonths });
   } catch (error) {
     return next(error);
   }
@@ -128,13 +164,9 @@ export async function uploadAttendance(req: Request, res: Response, next: NextFu
 export async function downloadAttendanceTemplate(_req: Request, res: Response, next: NextFunction) {
   try {
     const rows = [
-      ["Schedule"],
-      ["ID: 1", "Name: Arjun Sharma"],
-      ["Dept: Engineering", "Shift: General", "Date: 2026-02-01 to 2026-02-28"],
-      ["Date", "Week", "Sec1 In", "Sec1 Out", "Sec2 In", "Sec2 Out", "Sec3 In", "Sec3 Out"],
-      ["02-01", "SUN", "", "", "", "", "", ""],
-      ["02-02", "MON", "09:05", "12:45", "13:30", "18:10", "", ""],
-      ["02-03", "TUE", "09:12", "18:02", "", "", "", ""]
+      ["employeeId", "name", "department", "date", "punchIn", "punchOut"],
+      ["EMP001", "Arjun Sharma", "Engineering", "2026-02-02", "09:05", "18:10"],
+      ["EMP002", "Neha Iyer", "Sales", "2026-02-02", "", ""]
     ];
     const worksheet = xlsx.utils.aoa_to_sheet(rows);
     const workbook = xlsx.utils.book_new();

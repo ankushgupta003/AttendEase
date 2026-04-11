@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Users, UserCheck, UserX, Clock, AlertCircle, Calendar, Sparkles, ShieldCheck, Bolt } from 'lucide-react';
+import { Users, UserCheck, UserMinus, Clock, WarningCircle, CalendarBlank, Sparkle, ShieldCheck, Lightning } from '@phosphor-icons/react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -9,11 +9,11 @@ import { AttendanceRecord, Employee } from '@/types';
 
 const statCards = [
   { key: 'present', label: 'Present (Month)', icon: UserCheck, color: 'text-status-present', bg: 'bg-status-present-bg' },
-  { key: 'absent', label: 'Absent (Month)', icon: UserX, color: 'text-status-absent', bg: 'bg-status-absent-bg' },
+  { key: 'absent', label: 'Absent (Month)', icon: UserMinus, color: 'text-status-absent', bg: 'bg-status-absent-bg' },
   { key: 'late', label: 'Late (Month)', icon: Clock, color: 'text-status-late', bg: 'bg-status-late-bg' },
-  { key: 'missing', label: 'Missing Punch', icon: AlertCircle, color: 'text-status-missing', bg: 'bg-status-missing-bg' },
+  { key: 'missing', label: 'Missing Punch', icon: WarningCircle, color: 'text-status-missing', bg: 'bg-status-missing-bg' },
   { key: 'totalEmployees', label: 'Total Employees', icon: Users, color: 'text-primary', bg: 'bg-accent' },
-  { key: 'onLeave', label: 'On Leave (Month)', icon: Calendar, color: 'text-muted-foreground', bg: 'bg-muted' },
+  { key: 'onLeave', label: 'On Leave (Month)', icon: CalendarBlank, color: 'text-muted-foreground', bg: 'bg-muted' },
 ];
 
 export default function DashboardPage() {
@@ -92,24 +92,24 @@ export default function DashboardPage() {
   return (
     <AppLayout title="Dashboard" selectedMonth={selectedMonth} onMonthChange={setSelectedMonth}>
       <div className="space-y-6">
-        <div className="rounded-2xl border bg-[linear-gradient(120deg,#0b1220,#0f172a_45%,#1d4ed8)] text-white p-6 shadow-lg">
+        <div className="rounded-2xl border bg-[linear-gradient(120deg,#eef2ff,#e0f2fe_45%,#dbeafe)] text-slate-900 p-6 shadow-lg">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-2">
-              <p className="text-xs uppercase tracking-[0.2em] text-white/70">Monthly Attendance Overview</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Monthly Attendance Overview</p>
               <h2 className="text-2xl font-semibold">Processed attendance for {monthLabel}</h2>
-              <p className="text-sm text-white/70">Snapshot based on the selected month data.</p>
+              <p className="text-sm text-slate-500">Snapshot based on the selected month data.</p>
             </div>
             <div className="flex gap-3 flex-wrap">
-              <div className="rounded-xl bg-white/10 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wide text-white/70">Total Records</p>
+              <div className="rounded-xl bg-white/70 px-4 py-3 shadow-sm">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500">Total Records</p>
                 <p className="text-xl font-semibold">{monthStats.totalRecords}</p>
               </div>
-              <div className="rounded-xl bg-white/10 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wide text-white/70">Exceptions</p>
+              <div className="rounded-xl bg-white/70 px-4 py-3 shadow-sm">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500">Exceptions</p>
                 <p className="text-xl font-semibold">{monthStats.exceptions}</p>
               </div>
-              <div className="rounded-xl bg-white/10 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wide text-white/70">Salary Ready</p>
+              <div className="rounded-xl bg-white/70 px-4 py-3 shadow-sm">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500">Salary Ready</p>
                 <p className="text-xl font-semibold">{monthStats.salaryReadyRate}%</p>
               </div>
             </div>
@@ -120,7 +120,7 @@ export default function DashboardPage() {
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
+                <Sparkle className="h-4 w-4 text-primary" weight="duotone" />
                 Monthly Attendance Health
               </CardTitle>
             </CardHeader>
@@ -165,7 +165,7 @@ export default function DashboardPage() {
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                <ShieldCheck className="h-4 w-4 text-emerald-600" weight="duotone" />
                 Salary Readiness Meter
               </CardTitle>
             </CardHeader>
@@ -199,7 +199,7 @@ export default function DashboardPage() {
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Bolt className="h-4 w-4 text-orange-500" />
+                <Lightning className="h-4 w-4 text-orange-500" weight="duotone" />
                 Monthly Exceptions Queue
               </CardTitle>
             </CardHeader>
@@ -241,7 +241,7 @@ export default function DashboardPage() {
                     </p>
                   </div>
                   <div className={`p-2 rounded-lg ${bg} flex-shrink-0`}>
-                    <Icon className={`h-4 w-4 ${color}`} />
+                    <Icon className={`h-4 w-4 ${color}`} weight="duotone" />
                   </div>
                 </div>
               </CardContent>
@@ -258,7 +258,7 @@ export default function DashboardPage() {
               <p className="text-sm text-muted-foreground text-center py-4">No records for this month yet</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-max text-xs min-w-[640px] whitespace-nowrap">
+                <table className="w-full text-xs data-grid">
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left pb-2 font-semibold text-muted-foreground">Employee</th>

@@ -1,13 +1,13 @@
 import { useLocation, Link } from 'react-router-dom';
 import {
-  LayoutDashboard,
+  HouseSimple,
   Clock,
   Upload,
   Users,
-  Settings,
+  Gear,
   FileText,
-  ChevronLeft,
-} from 'lucide-react';
+  CaretLeft,
+} from '@phosphor-icons/react';
 import {
   Sidebar,
   SidebarContent,
@@ -24,11 +24,11 @@ import { cn } from '@/lib/utils';
 import AttendEaseLogo from '@/components/branding/AttendEaseLogo';
 
 const navItems = [
-  { title: 'Dashboard', url: '/', icon: LayoutDashboard },
+  { title: 'Dashboard', url: '/', icon: HouseSimple },
   { title: 'Attendance', url: '/attendance', icon: Clock },
   { title: 'Upload', url: '/upload', icon: Upload },
   { title: 'Employees', url: '/employees', icon: Users },
-  { title: 'Masters', url: '/masters', icon: Settings },
+  { title: 'Masters', url: '/masters', icon: Gear },
   { title: 'Reports', url: '/reports', icon: FileText },
 ];
 
@@ -38,8 +38,8 @@ export function AppSidebar() {
   const location = useLocation();
 
   return (
-    <Sidebar collapsible="icon" className="border-r-0">
-      <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
+    <Sidebar collapsible="icon" variant="floating" className="border-r-0">
+      <SidebarHeader className="border-b border-sidebar-border/60 px-4 py-3">
         <div className={cn('flex items-center justify-center', !collapsed && 'justify-start')}>
           {collapsed ? (
             <AttendEaseLogo compact className="scale-[0.45] -my-6" />
@@ -49,10 +49,10 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-2 py-3">
+      <SidebarContent className="px-2 py-2">
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu className="gap-1">
+            <SidebarMenu className="gap-1.5">
               {navItems.map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
@@ -61,13 +61,16 @@ export function AppSidebar() {
                       <Link
                         to={item.url}
                         className={cn(
-                          'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
+                          'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all',
                           isActive
-                            ? 'bg-primary text-primary-foreground font-medium'
-                            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                            ? 'bg-primary text-primary-foreground shadow-[0_12px_24px_-18px_rgba(37,99,235,0.9)]'
+                            : 'text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground'
                         )}
                       >
-                        <item.icon className={cn('h-4 w-4 flex-shrink-0', isActive ? 'text-primary-foreground' : '')} />
+                        <item.icon
+                          className={cn('h-4 w-4 flex-shrink-0', isActive ? 'text-primary-foreground' : '')}
+                          weight={isActive ? 'fill' : 'regular'}
+                        />
                         {!collapsed && <span>{item.title}</span>}
                       </Link>
                     </SidebarMenuButton>
@@ -79,12 +82,12 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-2">
+      <SidebarFooter className="border-t border-sidebar-border/60 p-2">
         <button
           onClick={toggleSidebar}
-          className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors text-xs"
+          className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground transition-colors text-xs"
         >
-          <ChevronLeft className={cn('h-3.5 w-3.5 transition-transform', collapsed && 'rotate-180')} />
+          <CaretLeft className={cn('h-3.5 w-3.5 transition-transform', collapsed && 'rotate-180')} />
           {!collapsed && <span>Collapse</span>}
         </button>
       </SidebarFooter>

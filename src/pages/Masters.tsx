@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Pencil, Trash2, Upload, Download, Database } from 'lucide-react';
+import { Plus, PencilSimple, Trash, UploadSimple, DownloadSimple, Database } from '@phosphor-icons/react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { Shift, Holiday, LeaveType } from '@/types';
+import { Shift, Holiday, LeaveType, LeavePolicy } from '@/types';
 import { apiDelete, apiDownload, apiGet, apiPatch, apiPost, apiPostForm } from '@/lib/api';
 import { getInitialMonth, persistMonth } from '@/lib/month';
 
@@ -22,6 +22,7 @@ export default function MastersPage() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [leavePolicy, setLeavePolicy] = useState<LeavePolicy | null>(null);
   const [apiMode, setApiMode] = useState<'local' | 'lan'>('local');
   const [apiBaseUrl, setApiBaseUrl] = useState('http://localhost:5000/api');
   const [testingConnection, setTestingConnection] = useState(false);
@@ -40,6 +41,7 @@ export default function MastersPage() {
     apiGet<Shift[]>("/shifts").then(setShifts).catch(() => setShifts([]));
     apiGet<Holiday[]>("/holidays").then(setHolidays).catch(() => setHolidays([]));
     apiGet<LeaveType[]>("/leave-types").then(setLeaveTypes).catch(() => setLeaveTypes([]));
+    apiGet<LeavePolicy>("/leave-policy").then(setLeavePolicy).catch(() => setLeavePolicy(null));
   }, []);
 
   useEffect(() => {
@@ -75,12 +77,27 @@ export default function MastersPage() {
 
   const saveLeave = async () => {
     if (!editLeave) return;
-    const saved = await apiPost<LeaveType>("/leave-types", editLeave);
+    const payload = editLeave.paymentOnLapse ? { ...editLeave, carryForward: false } : editLeave;
+    const saved = await apiPost<LeaveType>("/leave-types", payload);
     setLeaveTypes(prev => {
       const exists = prev.find(l => l.code === saved.code);
       return exists ? prev.map(l => l.code === saved.code ? saved : l) : [...prev, saved];
     });
     setEditLeave(null);
+  };
+  const updateLeaveYearType = async (yearType: LeavePolicy["yearType"]) => {
+    try {
+      const saved = await apiPatch<LeavePolicy>("/leave-policy", { yearType });
+      setLeavePolicy(saved);
+      toast({
+        title: 'Leave year updated',
+        description: yearType === 'CALENDAR'
+          ? 'Calendar year (Jan-Dec) selected.'
+          : 'Financial year (Apr-Mar) selected.'
+      });
+    } catch {
+      toast({ title: 'Update failed', description: 'Unable to update leave year type.', variant: 'destructive' });
+    }
   };
 
   const deleteHoliday = async (holidayId: string) => {
@@ -181,7 +198,7 @@ export default function MastersPage() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-semibold">Shift Definitions</CardTitle>
                   <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setEditShift({ id: '', name: '', startTime: '09:00', endTime: '18:00', graceMinutes: 15 })}>
-                    <Plus className="h-3 w-3" /> Add Shift
+                    <Plus className="h-3 w-3" weight="bold" /> Add Shift
                   </Button>
                 </div>
               </CardHeader>
@@ -195,7 +212,7 @@ export default function MastersPage() {
                         <p className="text-xs text-muted-foreground">Grace: {s.graceMinutes} mins</p>
                       </div>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditShift(s)}>
-                        <Pencil className="h-3.5 w-3.5" />
+                        <PencilSimple className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   ))}
@@ -217,13 +234,13 @@ export default function MastersPage() {
                       className="h-7 text-xs gap-1"
                       onClick={() => holidayFileRef.current?.click()}
                     >
-                      <Upload className="h-3 w-3" /> Upload Excel
+                      <UploadSimple className="h-3 w-3" /> Upload Excel
                     </Button>
                     <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={downloadHolidayTemplate}>
-                      <Download className="h-3 w-3" /> Template
+                      <DownloadSimple className="h-3 w-3" /> Template
                     </Button>
                     <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setEditHoliday({ id: '', name: '', date: '', type: 'National' })}>
-                      <Plus className="h-3 w-3" /> Add Holiday
+                      <Plus className="h-3 w-3" weight="bold" /> Add Holiday
                     </Button>
                   </div>
                 </div>
@@ -241,7 +258,7 @@ export default function MastersPage() {
                 />
                 <div className="rounded-lg border">
                   <div className="w-full overflow-x-auto">
-                    <table className="w-max text-xs min-w-[560px] whitespace-nowrap">
+                    <table className="w-full text-xs data-grid">
                     <thead>
                       <tr className="bg-muted/40 border-b">
                         {['Holiday Name', 'Date', 'Type', 'Actions'].map(h => (
@@ -259,8 +276,8 @@ export default function MastersPage() {
                           </td>
                           <td className="px-4 py-2.5">
                             <div className="flex gap-1">
-                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditHoliday(h)}><Pencil className="h-3 w-3" /></Button>
-                              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteHoliday(h.id)}><Trash2 className="h-3 w-3" /></Button>
+                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditHoliday(h)}><PencilSimple className="h-3 w-3" /></Button>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteHoliday(h.id)}><Trash className="h-3 w-3" /></Button>
                             </div>
                           </td>
                         </tr>
@@ -279,12 +296,28 @@ export default function MastersPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-semibold">Leave Types</CardTitle>
-                  <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setEditLeave({ id: '', name: '', code: '', paidLeave: true, maxDays: 0 })}>
-                    <Plus className="h-3 w-3" /> Add Leave Type
+                  <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setEditLeave({ id: '', name: '', code: '', paidLeave: true, carryForward: false, paymentOnLapse: false, maxDays: 0 })}>
+                    <Plus className="h-3 w-3" weight="bold" /> Add Leave Type
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
+                <div className="flex items-center justify-between gap-3 p-3 mb-3 rounded-lg border bg-muted/20">
+                  <div>
+                    <p className="text-xs font-semibold">Leave Year Type</p>
+                    <p className="text-[11px] text-muted-foreground">Choose calendar year or financial year for annual leave calculations.</p>
+                  </div>
+                  <Select
+                    value={leavePolicy?.yearType ?? 'CALENDAR'}
+                    onValueChange={(v: any) => updateLeaveYearType(v)}
+                  >
+                    <SelectTrigger className="h-8 text-xs w-[220px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CALENDAR" className="text-xs">Calendar Year (Jan-Dec)</SelectItem>
+                      <SelectItem value="FINANCIAL" className="text-xs">Financial Year (Apr-Mar)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {leaveTypes.map(l => (
                     <div key={l.id} className="flex items-start justify-between p-4 rounded-lg border hover:border-primary/30 transition-colors">
@@ -297,13 +330,21 @@ export default function MastersPage() {
                         <span className={`text-xs font-medium ${l.paidLeave ? 'text-status-present' : 'text-status-absent'}`}>
                           {l.paidLeave ? '● Paid' : '● Unpaid'}
                         </span>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          <Badge variant={l.carryForward ? "secondary" : "outline"} className="text-[10px] font-normal">
+                            {l.carryForward ? "Carry Forward: Yes" : "Carry Forward: No"}
+                          </Badge>
+                          <Badge variant={l.paymentOnLapse ? "secondary" : "outline"} className="text-[10px] font-normal">
+                            {l.paymentOnLapse ? "Payment: Yes" : "Payment: No"}
+                          </Badge>
+                        </div>
                       </div>
                       <div className="flex items-center gap-1">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditLeave(l)}>
-                          <Pencil className="h-3.5 w-3.5" />
+                          <PencilSimple className="h-3.5 w-3.5" />
                         </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteLeave(l.code, l.id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
@@ -447,6 +488,21 @@ export default function MastersPage() {
               <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
                 <Label>Paid Leave</Label>
                 <Switch checked={editLeave.paidLeave} onCheckedChange={v => setEditLeave(p => p && ({ ...p, paidLeave: v }))} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
+                <Label>Carry Forward</Label>
+                <Switch
+                  checked={editLeave.carryForward}
+                  disabled={editLeave.paymentOnLapse}
+                  onCheckedChange={v => setEditLeave(p => p && ({ ...p, carryForward: v }))}
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
+                <Label>Payment on Lapse</Label>
+                <Switch
+                  checked={editLeave.paymentOnLapse}
+                  onCheckedChange={v => setEditLeave(p => p && ({ ...p, paymentOnLapse: v, carryForward: v ? false : p.carryForward }))}
+                />
               </div>
             </div>
           )}

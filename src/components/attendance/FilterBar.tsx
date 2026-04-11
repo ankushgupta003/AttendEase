@@ -1,4 +1,4 @@
-import { Search, Filter, X } from 'lucide-react';
+import { MagnifyingGlass, Funnel, X } from '@phosphor-icons/react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -45,7 +45,7 @@ export function FilterBar({
   return (
     <div className={cn('flex flex-wrap items-center gap-2', className)}>
       <div className="relative flex-1 min-w-48">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <MagnifyingGlass className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <Input
           placeholder="Search employee..."
           value={search}
@@ -84,7 +84,7 @@ export function FilterBar({
         className="h-8 text-xs gap-1.5"
         onClick={onToggleExceptions}
       >
-        <Filter className="h-3.5 w-3.5" />
+        <Funnel className="h-3.5 w-3.5" weight="duotone" />
         Exceptions Only
       </Button>
 

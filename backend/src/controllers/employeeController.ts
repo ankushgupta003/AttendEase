@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { createEmployee, listEmployees, updateEmployee, updateEmployeeShift, getEmployeeLeaveSummary, getEmployeeAttendanceSummary } from "../services/attendanceService.js";
+import { createEmployee, listEmployees, updateEmployee, updateEmployeeShift, getEmployeeLeaveSummary, getEmployeeAttendanceSummary, applyLeaveRange, removeLeaveRange } from "../services/attendanceService.js";
 
 type EmployeeDto = {
   id: string;
@@ -112,6 +112,41 @@ export async function getEmployeeAttendanceSummaryHandler(req: Request, res: Res
 
     const summary = await getEmployeeAttendanceSummary(employeeId, month, period);
     return res.json(summary);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function applyLeaveRangeHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { employeeId } = req.params;
+    const { dateFrom, dateTo, leaveTypeCode } = req.body as {
+      dateFrom: string;
+      dateTo: string;
+      leaveTypeCode: string;
+    };
+    if (!dateFrom || !dateTo || !leaveTypeCode) {
+      return res.status(400).json({ message: "dateFrom, dateTo, and leaveTypeCode are required." });
+    }
+    const result = await applyLeaveRange({ employeeId, dateFrom, dateTo, leaveTypeCode });
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function removeLeaveRangeHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { employeeId } = req.params;
+    const { dateFrom, dateTo } = req.body as {
+      dateFrom: string;
+      dateTo: string;
+    };
+    if (!dateFrom || !dateTo) {
+      return res.status(400).json({ message: "dateFrom and dateTo are required." });
+    }
+    const result = await removeLeaveRange({ employeeId, dateFrom, dateTo });
+    return res.json(result);
   } catch (error) {
     return next(error);
   }
