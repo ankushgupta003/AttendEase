@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Pencil, Eye, ToggleLeft, ToggleRight, Users } from 'lucide-react';
+import { Plus, MagnifyingGlass, PencilSimple, Eye } from '@phosphor-icons/react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Employee, LeaveSummary } from '@/types';
+import { Employee, LeaveSummary, LeaveType } from '@/types';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { getInitialMonth, persistMonth } from '@/lib/month';
 
@@ -30,6 +30,12 @@ export default function EmployeesPage() {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [attendanceData, setAttendanceData] = useState<any>(null);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
+  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [leaveRangeFrom, setLeaveRangeFrom] = useState('');
+  const [leaveRangeTo, setLeaveRangeTo] = useState('');
+  const [leaveTypeCode, setLeaveTypeCode] = useState('');
+  const [applyingLeave, setApplyingLeave] = useState(false);
+  const [removingLeave, setRemovingLeave] = useState(false);
   const [detailPeriod, setDetailPeriod] = useState<'monthly' | 'quarterly' | 'yearly'>('monthly');
   const [detailMonth, setDetailMonth] = useState(selectedMonth);
   const formatPeriodLabel = (monthStr: string, period: 'monthly' | 'quarterly' | 'yearly') => {
@@ -74,6 +80,12 @@ export default function EmployeesPage() {
     apiGet<{ name: string }[]>("/shifts")
       .then((rows) => setShifts(rows.map((row) => row.name)))
       .catch(() => setShifts([]));
+    apiGet<LeaveType[]>("/leave-types")
+      .then((rows) => {
+        setLeaveTypes(rows);
+        if (rows.length && !leaveTypeCode) setLeaveTypeCode(rows[0].code);
+      })
+      .catch(() => setLeaveTypes([]));
   }, []);
 
   const departments = useMemo(() => {
@@ -92,6 +104,9 @@ export default function EmployeesPage() {
     setViewEmp(emp);
     setDetailMonth(selectedMonth);
     setDetailPeriod('monthly');
+    setLeaveRangeFrom('');
+    setLeaveRangeTo('');
+    if (leaveTypes.length && !leaveTypeCode) setLeaveTypeCode(leaveTypes[0].code);
     
     // Fetch leave summary
     setLoadingSummary(true);
@@ -106,6 +121,42 @@ export default function EmployeesPage() {
 
     // Fetch attendance summary (default to the selected month)
     await fetchAttendanceSummary(emp.id, selectedMonth, 'monthly');
+  };
+
+  const applyLeaveRange = async () => {
+    if (!viewEmp || !leaveRangeFrom || !leaveRangeTo || !leaveTypeCode) return;
+    setApplyingLeave(true);
+    try {
+      await apiPost(`/employees/${viewEmp.id}/leave-range`, {
+        dateFrom: leaveRangeFrom,
+        dateTo: leaveRangeTo,
+        leaveTypeCode
+      });
+      const summary = await apiGet<LeaveSummary>(`/employees/${viewEmp.id}/leave-summary`, { year: Number(selectedMonth.split('-')[0]), period: 'annual' });
+      setLeaveSummary(summary);
+      await fetchAttendanceSummary(viewEmp.id, detailMonth, detailPeriod);
+    } catch {
+      // swallow; toast not available here
+    } finally {
+      setApplyingLeave(false);
+    }
+  };
+  const removeLeaveRange = async () => {
+    if (!viewEmp || !leaveRangeFrom || !leaveRangeTo) return;
+    setRemovingLeave(true);
+    try {
+      await apiPost(`/employees/${viewEmp.id}/leave-range/remove`, {
+        dateFrom: leaveRangeFrom,
+        dateTo: leaveRangeTo
+      });
+      const summary = await apiGet<LeaveSummary>(`/employees/${viewEmp.id}/leave-summary`, { year: Number(selectedMonth.split('-')[0]), period: 'annual' });
+      setLeaveSummary(summary);
+      await fetchAttendanceSummary(viewEmp.id, detailMonth, detailPeriod);
+    } catch {
+      // swallow; toast not available here
+    } finally {
+      setRemovingLeave(false);
+    }
   };
   const openNew = () => {
     setEditEmp({
@@ -160,6 +211,12 @@ export default function EmployeesPage() {
     const updated = await apiPatch<Employee>(`/employees/${id}`, { active: !employee.active });
     setEmployees(prev => prev.map(e => e.id === id ? updated : e));
   };
+  const toggleOvertimeEligible = async (id: string) => {
+    const employee = employees.find((e) => e.id === id);
+    if (!employee) return;
+    const updated = await apiPatch<Employee>(`/employees/${id}`, { overtimeEligible: !employee.overtimeEligible });
+    setEmployees(prev => prev.map(e => e.id === id ? updated : e));
+  };
 
   const activeCount = employees.filter(e => e.active).length;
 
@@ -179,7 +236,7 @@ export default function EmployeesPage() {
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <MagnifyingGlass className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Search employees..."
                 value={search}
@@ -188,24 +245,24 @@ export default function EmployeesPage() {
               />
             </div>
             <Button size="sm" className="h-8 text-xs gap-1.5" onClick={openNew}>
-              <Plus className="h-3.5 w-3.5" /> Add Employee
+              <Plus className="h-3.5 w-3.5" weight="bold" /> Add Employee
             </Button>
           </div>
         </div>
 
         <div className="rounded-lg border bg-card">
           <div className="w-full overflow-x-auto">
-            <table className="w-max text-xs min-w-[760px] whitespace-nowrap">
+            <table className="w-full text-xs data-grid">
             <thead>
               <tr className="bg-muted/40 border-b">
-                {['Code', 'Name', 'Department', 'Shift', 'Status', 'Actions'].map(h => (
+                {['Code', 'Name', 'Department', 'Shift', 'OT Eligible', 'Status', 'Actions'].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 font-semibold text-muted-foreground">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-10 text-muted-foreground">No employees found</td></tr>
+                <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">No employees found</td></tr>
               ) : filtered.map(emp => (
                 <tr key={emp.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3 font-mono font-medium text-muted-foreground">{emp.code}</td>
@@ -226,6 +283,12 @@ export default function EmployeesPage() {
                   <td className="px-4 py-3 text-muted-foreground">{emp.shift}</td>
                   <td className="px-4 py-3">
                     <Switch
+                      checked={emp.overtimeEligible}
+                      onCheckedChange={() => toggleOvertimeEligible(emp.id)}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <Switch
                       checked={emp.active}
                       onCheckedChange={() => toggleActive(emp.id)}
                     />
@@ -233,10 +296,10 @@ export default function EmployeesPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDetails(emp)}>
-                        <Eye className="h-3.5 w-3.5" />
+                        <Eye className="h-3.5 w-3.5" weight="duotone" />
                       </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(emp)}>
-                        <Pencil className="h-3.5 w-3.5" />
+                        <PencilSimple className="h-3.5 w-3.5" weight="duotone" />
                       </Button>
                     </div>
                   </td>
@@ -320,6 +383,49 @@ export default function EmployeesPage() {
 
             {/* Leave Summary Tab */}
             <TabsContent value="leave" className="space-y-3">
+              <div className="rounded-lg border p-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">Apply Leave Range</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">From</Label>
+                    <Input type="date" value={leaveRangeFrom} onChange={(e) => setLeaveRangeFrom(e.target.value)} className="h-8 text-xs" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">To</Label>
+                    <Input type="date" value={leaveRangeTo} onChange={(e) => setLeaveRangeTo(e.target.value)} className="h-8 text-xs" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Leave Type</Label>
+                    <Select value={leaveTypeCode} onValueChange={setLeaveTypeCode}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {leaveTypes.map((lt) => (
+                          <SelectItem key={lt.code} value={lt.code} className="text-xs">
+                            {lt.name} ({lt.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={removeLeaveRange}
+                    disabled={!leaveRangeFrom || !leaveRangeTo || removingLeave}
+                  >
+                    {removingLeave ? 'Removing...' : 'Remove Leave'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={applyLeaveRange}
+                    disabled={!leaveRangeFrom || !leaveRangeTo || !leaveTypeCode || applyingLeave}
+                  >
+                    {applyingLeave ? 'Applying...' : 'Apply Leave'}
+                  </Button>
+                </div>
+              </div>
               {loadingSummary ? (
                 <div className="py-8 text-center text-sm text-muted-foreground">Loading...</div>
               ) : !leaveSummary ? (

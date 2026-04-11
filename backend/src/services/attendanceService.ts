@@ -322,6 +322,14 @@ export async function setFinalization(month: string, status: "DRAFT" | "FINALIZE
   });
 }
 
+export async function getLockedMonths(months: string[]) {
+  if (!months.length) return [];
+  const rows = await prisma.attendanceFinalization.findMany({
+    where: { month: { in: months }, status: FinalizationStatus.LOCKED }
+  });
+  return rows.map((row) => row.month);
+}
+
 export async function updateAttendanceRecord(attendanceId: string, payload: {
   inTime?: string | null;
   outTime?: string | null;
@@ -392,6 +400,7 @@ export async function bulkAction(params: {
   dateFrom: string;
   dateTo: string;
   shiftName?: string;
+  leaveTypeCode?: string;
 }) {
   const from = dayjs(params.dateFrom, "YYYY-MM-DD", true);
   const to = dayjs(params.dateTo, "YYYY-MM-DD", true);
@@ -413,6 +422,10 @@ export async function bulkAction(params: {
     return { updated: employees.length };
   }
 
+  if (params.action === "mark-leave" && !params.leaveTypeCode) {
+    throw new Error("leaveTypeCode is required for mark-leave.");
+  }
+
   let updated = 0;
   for (const employee of employees) {
     const shift = employee.shift ?? (await getOrCreateDefaultShift());
@@ -430,6 +443,7 @@ export async function bulkAction(params: {
         outTime = null;
         workingMinutes = null;
         isLate = false;
+        await upsertLeaveForDate(prisma, employee.id, date, params.leaveTypeCode as string);
       }
 
       if (params.action === "fix-missing") {
@@ -462,12 +476,130 @@ export async function bulkAction(params: {
   return { updated };
 }
 
+export async function applyLeaveRange(params: {
+  employeeId: string;
+  dateFrom: string;
+  dateTo: string;
+  leaveTypeCode: string;
+}) {
+  const from = dayjs(params.dateFrom, "YYYY-MM-DD", true);
+  const to = dayjs(params.dateTo, "YYYY-MM-DD", true);
+  if (!from.isValid() || !to.isValid()) {
+    throw new Error("Invalid date range. Use YYYY-MM-DD.");
+  }
+
+  const leaveType = await prisma.leaveType.findUnique({ where: { code: params.leaveTypeCode } });
+  if (!leaveType) {
+    throw new Error("Leave type not found.");
+  }
+
+  const employee = await prisma.employee.findUnique({
+    where: { id: params.employeeId },
+    include: { shift: true }
+  });
+  if (!employee) {
+    throw new Error("Employee not found.");
+  }
+
+  let updated = 0;
+  for (let d = from.clone(); d.isSameOrBefore(to, "day"); d = d.add(1, "day")) {
+    const date = toDateStart(d);
+    await upsertLeaveForDate(prisma, employee.id, date, params.leaveTypeCode);
+    await prisma.attendance.upsert({
+      where: { employeeId_date: { employeeId: employee.id, date } },
+      create: {
+        employeeId: employee.id,
+        date,
+        inTime: null,
+        outTime: null,
+        workingMinutes: null,
+        status: AttendanceStatus.LEAVE,
+        isLate: false
+      },
+      update: {
+        inTime: null,
+        outTime: null,
+        workingMinutes: null,
+        status: AttendanceStatus.LEAVE,
+        isLate: false
+      }
+    });
+    updated += 1;
+  }
+
+  return { updated };
+}
+
+export async function removeLeaveRange(params: {
+  employeeId: string;
+  dateFrom: string;
+  dateTo: string;
+}) {
+  const from = dayjs(params.dateFrom, "YYYY-MM-DD", true);
+  const to = dayjs(params.dateTo, "YYYY-MM-DD", true);
+  if (!from.isValid() || !to.isValid()) {
+    throw new Error("Invalid date range. Use YYYY-MM-DD.");
+  }
+
+  const employee = await prisma.employee.findUnique({
+    where: { id: params.employeeId },
+    include: { shift: true }
+  });
+  if (!employee) {
+    throw new Error("Employee not found.");
+  }
+
+  let updated = 0;
+  for (let d = from.clone(); d.isSameOrBefore(to, "day"); d = d.add(1, "day")) {
+    const date = toDateStart(d);
+    await removeLeaveForDate(prisma, employee.id, date);
+    const result = await prisma.attendance.updateMany({
+      where: { employeeId: employee.id, date, status: AttendanceStatus.LEAVE },
+      data: {
+        inTime: null,
+        outTime: null,
+        workingMinutes: null,
+        status: AttendanceStatus.ABSENT,
+        isLate: false
+      }
+    });
+    updated += result.count;
+  }
+
+  return { updated };
+}
+
 export async function processScheduleBlocks(blocks: ParsedScheduleBlock[]) {
   const seenEmployees = new Set<string>();
   let processed = 0;
   let exceptions = 0;
 
   for (const block of blocks) {
+    let entries = block.entries;
+    const entryDates = new Set(entries.map((entry) => entry.date.format("YYYY-MM-DD")));
+
+    if (!block.rangeStart && !block.rangeEnd && entries.length) {
+      const months = Array.from(new Set(entries.map((entry) => entry.date.format("YYYY-MM"))));
+      const filled: typeof entries = [];
+      for (const month of months) {
+        const { start, end } = monthRange(month);
+        for (let d = start.clone(); d.isSameOrBefore(end, "day"); d = d.add(1, "day")) {
+          const dateStr = d.format("YYYY-MM-DD");
+          if (entryDates.has(dateStr)) continue;
+          filled.push({
+            date: d,
+            times: [],
+            inTime: null,
+            outTime: null
+          });
+          entryDates.add(dateStr);
+        }
+      }
+      if (filled.length) {
+        entries = entries.concat(filled);
+      }
+    }
+
     const shift = await getOrCreateShiftByName(block.shiftName);
     const employee = await prisma.employee.upsert({
       where: { code: block.empCode },
@@ -487,7 +619,7 @@ export async function processScheduleBlocks(blocks: ParsedScheduleBlock[]) {
     });
     seenEmployees.add(employee.id);
 
-    for (const entry of block.entries) {
+    for (const entry of entries) {
       const attendanceDate = toDateStart(entry.date);
       const [holiday, leave] = await Promise.all([
         prisma.holiday.findUnique({ where: { date: attendanceDate } }),
@@ -603,11 +735,16 @@ export async function getEmployeeLeaveSummary(employeeId: string, opts?: { year?
   const month = opts?.month;
   const period = opts?.period ?? 'annual';
   const leaveMasterMode = process.env.LEAVE_MASTER_MODE === 'monthly' ? 'monthly' : 'annual';
+  const leavePolicy = await getLeavePolicy();
 
   const leaveTypes = await listLeaveTypes();
 
   let startDate = dayjs(`${year}-01-01`, 'YYYY-MM-DD', true).startOf('day');
   let endDate = dayjs(`${year}-12-31`, 'YYYY-MM-DD', true).endOf('day');
+  if (period === 'annual' && leavePolicy.yearType === 'FINANCIAL') {
+    startDate = dayjs(`${year}-04-01`, 'YYYY-MM-DD', true).startOf('day');
+    endDate = dayjs(`${year + 1}-03-31`, 'YYYY-MM-DD', true).endOf('day');
+  }
   if (period === 'monthly' && month) {
     startDate = dayjs(`${year}-${String(month).padStart(2, '0')}-01`, 'YYYY-MM-DD', true).startOf('month');
     endDate = startDate.endOf('month');
@@ -959,11 +1096,24 @@ export async function listLeaveTypes() {
   return prisma.leaveType.findMany({ orderBy: { code: "asc" } });
 }
 
-export async function upsertLeaveType(payload: { code: string; name: string; paidLeave: boolean; maxDays: number }) {
+export async function upsertLeaveType(payload: {
+  code: string;
+  name: string;
+  paidLeave: boolean;
+  carryForward: boolean;
+  paymentOnLapse: boolean;
+  maxDays: number;
+}) {
   return prisma.leaveType.upsert({
     where: { code: payload.code },
     create: payload,
-    update: { name: payload.name, paidLeave: payload.paidLeave, maxDays: payload.maxDays }
+    update: {
+      name: payload.name,
+      paidLeave: payload.paidLeave,
+      carryForward: payload.carryForward,
+      paymentOnLapse: payload.paymentOnLapse,
+      maxDays: payload.maxDays
+    }
   });
 }
 
@@ -980,6 +1130,22 @@ export async function deleteLeaveType(identifier: string) {
   }
 
   throw new Error("Leave type not found.");
+}
+
+export async function getLeavePolicy() {
+  return prisma.leavePolicy.upsert({
+    where: { id: "default" },
+    create: { id: "default", yearType: "CALENDAR" },
+    update: {}
+  });
+}
+
+export async function updateLeavePolicy(payload: { yearType: "CALENDAR" | "FINANCIAL" }) {
+  return prisma.leavePolicy.upsert({
+    where: { id: "default" },
+    create: { id: "default", yearType: payload.yearType },
+    update: { yearType: payload.yearType }
+  });
 }
 
 export async function getAttendanceSummary(month: string, department?: string) {
@@ -1034,7 +1200,10 @@ export async function getAttendanceSummary(month: string, department?: string) {
     sundayDays: number;
     holidayDays: number;
     totalMinutes: number;
-    overtimeMinutes: number;
+    overtimeMinutesTotal: number;
+    overtimeMinutesWeekOff: number;
+    overtimeMinutesRegular: number;
+    baseMinutes: number;
     overtimeEligible: boolean;
   }>();
 
@@ -1054,7 +1223,10 @@ export async function getAttendanceSummary(month: string, department?: string) {
       sundayDays: 0,
       holidayDays: 0,
       totalMinutes: 0,
-      overtimeMinutes: 0,
+      overtimeMinutesTotal: 0,
+      overtimeMinutesWeekOff: 0,
+      overtimeMinutesRegular: 0,
+      baseMinutes: 0,
       overtimeEligible: row.employee.overtimeEligible ?? false
     };
 
@@ -1069,16 +1241,16 @@ export async function getAttendanceSummary(month: string, department?: string) {
     if (row.status === AttendanceStatus.HOLIDAY) current.holidayDays += 1;
     if (row.workingMinutes) current.totalMinutes += row.workingMinutes;
     if (row.workingMinutes) {
-      if (row.status === AttendanceStatus.WEEK_OFF || row.status === AttendanceStatus.HOLIDAY) {
-        current.overtimeMinutes += row.workingMinutes;
-      } else {
-        const shiftMinutes = computeShiftMinutes(dayjs(row.date), row.employee.shift ?? null);
-        if (shiftMinutes != null && row.workingMinutes > shiftMinutes) {
-          current.overtimeMinutes += (row.workingMinutes - shiftMinutes);
-        }
+      const shiftMinutes = computeShiftMinutes(dayjs(row.date), row.employee.shift ?? null);
+      if (row.status === AttendanceStatus.WEEK_OFF) {
+        current.overtimeMinutesWeekOff += row.workingMinutes;
+      } else if (shiftMinutes != null && row.workingMinutes > shiftMinutes) {
+        current.overtimeMinutesRegular += (row.workingMinutes - shiftMinutes);
       }
     }
 
+    current.overtimeMinutesTotal = current.overtimeMinutesWeekOff + current.overtimeMinutesRegular;
+    current.baseMinutes = Math.max(0, current.totalMinutes - current.overtimeMinutesTotal);
     summary.set(key, current);
   }
 
@@ -1086,7 +1258,14 @@ export async function getAttendanceSummary(month: string, department?: string) {
     ...row,
     paidLeaveDays: paidLeaveDaysByEmployee.get(employeeId) ?? 0,
     totalHrs: formatMinutes(row.totalMinutes),
-    overtimeHrs: formatMinutes(row.overtimeMinutes)
+    overtimeMinutes: row.overtimeMinutesTotal,
+    overtimeMinutesWeekOff: row.overtimeMinutesWeekOff,
+    overtimeMinutesRegular: row.overtimeMinutesRegular,
+    overtimeHrs: formatMinutes(row.overtimeMinutesTotal),
+    overtimeHrsWeekOff: formatMinutes(row.overtimeMinutesWeekOff),
+    overtimeHrsRegular: formatMinutes(row.overtimeMinutesRegular),
+    baseMinutes: row.baseMinutes,
+    baseHrs: formatMinutes(row.baseMinutes)
   }));
 
   const sandwichMap = await getSandwichDeductions(month, department);

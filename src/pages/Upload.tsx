@@ -1,5 +1,5 @@
 ﻿import { useEffect, useRef, useState } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, ArrowRight } from 'lucide-react';
+import { UploadSimple, FileArrowUp, CheckCircle, WarningCircle, X, ArrowRight } from '@phosphor-icons/react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -20,6 +20,8 @@ export default function UploadPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
   const [summary, setSummary] = useState<{ processed: number; exceptions: number } | null>(null);
+  const [uploadWarning, setUploadWarning] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [holidays, setHolidays] = useState<{ id: string; name: string; date: string }[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({
     A: 'Employee Code', B: 'Date', C: 'In Time', D: 'Out Time',
@@ -28,6 +30,8 @@ export default function UploadPage() {
   const handleFile = (f: File) => {
     setFile(f);
     setStep('map');
+    setUploadWarning(null);
+    setUploadError(null);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -83,7 +87,7 @@ export default function UploadPage() {
               >
                 <div className="flex flex-col items-center gap-3">
                   <div className="h-14 w-14 rounded-xl bg-accent flex items-center justify-center">
-                    <FileSpreadsheet className="h-7 w-7 text-primary" />
+                    <FileArrowUp className="h-7 w-7 text-primary" />
                   </div>
                   <div>
                     <p className="text-sm font-medium">Drop your file here or click to browse</p>
@@ -97,8 +101,8 @@ export default function UploadPage() {
               <div className="rounded-lg bg-muted/50 p-4 space-y-2">
                 <p className="text-xs font-semibold">Expected Format</p>
                 <p className="text-xs text-muted-foreground">
-                  Use the Schedule block format: header rows with ID, Name, Dept, Shift, Date range,
-                  followed by daily rows with time cells (first time = In, last time = Out).
+                  Use the simple template with columns: employeeId, name, department, date, punchIn, punchOut.
+                  You can also upload the older Schedule block format (ID/Name/Dept/Shift/Date range + daily rows).
                 </p>
                 <Button
                   variant="link"
@@ -144,7 +148,7 @@ export default function UploadPage() {
                   <CardDescription>Match your file's columns to the required fields.</CardDescription>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <FileSpreadsheet className="h-4 w-4 text-primary" />
+                  <FileArrowUp className="h-4 w-4 text-primary" />
                   {file.name}
                   <button onClick={() => { setFile(null); setStep('upload'); }} className="hover:text-destructive">
                     <X className="h-3.5 w-3.5" />
@@ -168,8 +172,13 @@ export default function UploadPage() {
                   </div>
                 ))}
               </div>
+              {uploadError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 text-red-900 px-3 py-2 text-xs">
+                  {uploadError}
+                </div>
+              )}
               <div className="flex gap-2 justify-end pt-2">
-                <Button variant="outline" size="sm" onClick={() => setStep('upload')}>Back</Button>
+                <Button variant="outline" size="sm" onClick={() => { setUploadError(null); setStep('upload'); }}>Back</Button>
                 <Button
                   size="sm"
                   onClick={async () => {
@@ -177,9 +186,15 @@ export default function UploadPage() {
                     const form = new FormData();
                     form.append("file", file);
                     form.append("mapping", JSON.stringify(mapping));
-                    const res = await apiPostForm<{ preview: PreviewRow[] }>("/attendance/upload/preview", form);
-                    setPreviewRows(res.preview);
-                    setStep('preview');
+                    try {
+                      setUploadError(null);
+                      const res = await apiPostForm<{ preview: PreviewRow[]; warning?: string | null }>("/attendance/upload/preview", form);
+                      setPreviewRows(res.preview);
+                      setUploadWarning(res.warning ?? null);
+                      setStep('preview');
+                    } catch (err: any) {
+                      setUploadError(err?.message || "Failed to parse file.");
+                    }
                   }}
                 >
                   Preview Data &gt;
@@ -196,9 +211,21 @@ export default function UploadPage() {
               <CardDescription>Review the parsed data before processing.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {uploadError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 text-red-900 px-3 py-2 text-xs">
+                  {uploadError}
+                </div>
+              )}
+
+              {uploadWarning && (
+                <div className="rounded-lg border border-yellow-200 bg-yellow-50 text-yellow-900 px-3 py-2 text-xs">
+                  {uploadWarning}
+                </div>
+              )}
+
               <div className="rounded-lg border">
                 <div className="w-full overflow-x-auto">
-                  <table className="w-max text-xs min-w-[520px] whitespace-nowrap">
+                  <table className="w-full text-xs data-grid">
                   <thead>
                     <tr className="bg-muted/40 border-b">
                       {['Employee Code', 'Date', 'In Time', 'Out Time', 'Status'].map(h => (
@@ -220,11 +247,11 @@ export default function UploadPage() {
                             </span>
                           ) : (!row.inTime || !row.outTime) ? (
                             <span className="status-missing inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium">
-                              <AlertCircle className="h-3 w-3" /> Missing Punch
+                              <WarningCircle className="h-3 w-3" /> Missing Punch
                             </span>
                           ) : (
                             <span className="status-present inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium">
-                              <CheckCircle2 className="h-3 w-3" /> OK
+                              <CheckCircle className="h-3 w-3" /> OK
                             </span>
                           )}
                         </td>
@@ -235,11 +262,11 @@ export default function UploadPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground">
-                <AlertCircle className="h-4 w-4 text-status-missing flex-shrink-0" />
+                <WarningCircle className="h-4 w-4 text-status-missing flex-shrink-0" />
                 <span>Missing punches will be flagged for review.</span>
               </div>
               <div className="flex gap-2 justify-end pt-1">
-                <Button variant="outline" size="sm" onClick={() => setStep('map')}>Back</Button>
+                <Button variant="outline" size="sm" onClick={() => { setUploadError(null); setStep('map'); }}>Back</Button>
                 <Button
                   size="sm"
                   onClick={async () => {
@@ -247,12 +274,18 @@ export default function UploadPage() {
                     const form = new FormData();
                     form.append("file", file);
                     form.append("mapping", JSON.stringify(mapping));
-                    const res = await apiPostForm<{ summary: { processed: number; exceptions: number } }>("/attendance/upload", form);
-                    setSummary(res.summary);
-                    setStep('done');
+                    try {
+                      setUploadError(null);
+                      const res = await apiPostForm<{ summary: { processed: number; exceptions: number }; warning?: string | null }>("/attendance/upload", form);
+                      setSummary(res.summary);
+                      setUploadWarning(res.warning ?? null);
+                      setStep('done');
+                    } catch (err: any) {
+                      setUploadError(err?.message || "Upload failed.");
+                    }
                   }}
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Process Attendance
+                  <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Process Attendance
                 </Button>
               </div>
             </CardContent>
@@ -263,7 +296,7 @@ export default function UploadPage() {
           <Card className="border-0 shadow-sm">
             <CardContent className="py-12 text-center space-y-4">
               <div className="h-16 w-16 rounded-full bg-status-present-bg flex items-center justify-center mx-auto">
-                <CheckCircle2 className="h-8 w-8 text-status-present" />
+                <CheckCircle className="h-8 w-8 text-status-present" />
               </div>
               <div>
                 <h3 className="text-lg font-semibold">Upload Successful!</h3>
@@ -271,6 +304,11 @@ export default function UploadPage() {
                   {summary ? `${summary.processed} records processed · ${summary.exceptions} exceptions flagged` : 'Upload completed'}
                 </p>
               </div>
+              {uploadWarning && (
+                <div className="max-w-md mx-auto rounded-lg border border-yellow-200 bg-yellow-50 text-yellow-900 px-3 py-2 text-xs">
+                  {uploadWarning}
+                </div>
+              )}
               <div className="flex gap-2 justify-center">
                 <Button variant="outline" size="sm" onClick={() => { setStep('upload'); setFile(null); }}>
                   Upload Another

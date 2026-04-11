@@ -80,7 +80,16 @@ model LeaveType {
   name      String
   code      String   @unique
   paidLeave Boolean  @default(true)
+  carryForward Boolean @default(false)
+  paymentOnLapse Boolean @default(false)
   maxDays   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LeavePolicy {
+  id        String   @id
+  yearType  String   @default("CALENDAR")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

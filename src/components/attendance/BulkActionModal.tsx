@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { apiGet, apiPost } from '@/lib/api';
+import type { LeaveType } from '@/types';
 
 interface BulkActionModalProps {
   open: boolean;
@@ -45,6 +46,8 @@ export function BulkActionModal({ open, onClose, onApplied, employees: employees
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [shift, setShift] = useState('General');
+  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [leaveTypeCode, setLeaveTypeCode] = useState('');
 
   const toggleEmployee = (code: string) => {
     setSelectedEmployees(prev =>
@@ -71,13 +74,24 @@ export function BulkActionModal({ open, onClose, onApplied, employees: employees
       .catch(() => setEmployees([]));
   }, [open, employeesProp]);
 
+  useEffect(() => {
+    if (!open) return;
+    apiGet<LeaveType[]>("/leave-types")
+      .then((rows) => {
+        setLeaveTypes(rows);
+        if (rows.length && !leaveTypeCode) setLeaveTypeCode(rows[0].code);
+      })
+      .catch(() => setLeaveTypes([]));
+  }, [open, leaveTypeCode]);
+
   const handleApply = async () => {
     await apiPost("/attendance/bulk", {
       action,
       employeeCodes: selectedEmployees,
       dateFrom,
       dateTo,
-      shiftName: shift
+      shiftName: shift,
+      leaveTypeCode: action === 'mark-leave' ? leaveTypeCode : undefined
     });
     onClose();
     onApplied?.();
@@ -132,6 +146,21 @@ export function BulkActionModal({ open, onClose, onApplied, employees: employees
               </Select>
             </div>
           )}
+          {action === 'mark-leave' && (
+            <div className="space-y-1.5">
+              <Label>Leave Type</Label>
+              <Select value={leaveTypeCode} onValueChange={setLeaveTypeCode}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {leaveTypes.map((lt) => (
+                    <SelectItem key={lt.code} value={lt.code}>{lt.name} ({lt.code})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <Separator />
 
@@ -169,7 +198,15 @@ export function BulkActionModal({ open, onClose, onApplied, employees: employees
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleApply} disabled={selectedEmployees.length === 0 || !dateFrom}>
+          <Button
+            onClick={handleApply}
+            disabled={
+              selectedEmployees.length === 0 ||
+              !dateFrom ||
+              !dateTo ||
+              (action === 'mark-leave' && !leaveTypeCode)
+            }
+          >
             Apply to {selectedEmployees.length || 0} Employee(s)
           </Button>
         </DialogFooter>

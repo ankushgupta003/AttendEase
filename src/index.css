@@ -1,12 +1,14 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@300..800&family=Sora:wght@400..800&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* Core palette - Professional HR Blue */
-    --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
+    /* Core palette - Soft Modern Blue */
+    --background: 210 33% 98%;
+    --foreground: 222 20% 15%;
 
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
@@ -14,52 +16,52 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 221 83% 53%;
+    --primary: 220 90% 55%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 20% 95%;
+    --secondary: 210 25% 95%;
     --secondary-foreground: 222 47% 11%;
 
-    --muted: 210 20% 95%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 210 24% 96%;
+    --muted-foreground: 215 16% 45%;
 
-    --accent: 221 83% 95%;
-    --accent-foreground: 221 83% 35%;
+    --accent: 210 100% 96%;
+    --accent-foreground: 222 58% 35%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 221 83% 53%;
+    --border: 214 22% 90%;
+    --input: 214 22% 90%;
+    --ring: 220 90% 55%;
 
-    --radius: 0.5rem;
+    --radius: 0.9rem;
 
     /* Status colors */
-    --status-present: 142 71% 45%;
-    --status-present-bg: 142 71% 95%;
-    --status-absent: 0 84% 60%;
+    --status-present: 142 60% 38%;
+    --status-present-bg: 142 60% 94%;
+    --status-absent: 0 78% 55%;
     --status-absent-bg: 0 84% 96%;
-    --status-late: 38 92% 50%;
-    --status-late-bg: 38 92% 95%;
-    --status-halfday: 25 95% 53%;
-    --status-halfday-bg: 25 95% 95%;
-    --status-missing: 271 81% 56%;
-    --status-missing-bg: 271 81% 96%;
-    --status-weekoff: 210 36% 45%;
-    --status-weekoff-bg: 210 36% 95%;
-    --status-holiday: 340 84% 50%;
-    --status-holiday-bg: 340 84% 95%;
+    --status-late: 32 95% 45%;
+    --status-late-bg: 32 95% 94%;
+    --status-halfday: 24 92% 48%;
+    --status-halfday-bg: 24 92% 94%;
+    --status-missing: 268 70% 50%;
+    --status-missing-bg: 268 80% 95%;
+    --status-weekoff: 205 30% 42%;
+    --status-weekoff-bg: 205 35% 95%;
+    --status-holiday: 340 75% 52%;
+    --status-holiday-bg: 340 80% 95%;
 
     /* Sidebar */
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 210 40% 85%;
-    --sidebar-primary: 221 83% 53%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 20% 20%;
+    --sidebar-primary: 220 90% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 47% 17%;
-    --sidebar-accent-foreground: 210 40% 95%;
-    --sidebar-border: 222 47% 17%;
-    --sidebar-ring: 221 83% 53%;
+    --sidebar-accent: 210 24% 96%;
+    --sidebar-accent-foreground: 222 30% 20%;
+    --sidebar-border: 214 22% 90%;
+    --sidebar-ring: 220 90% 55%;
 
     /* Chart colors */
     --chart-1: 221 83% 53%;
@@ -106,15 +108,53 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-size: 16px;
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    background-image:
+      radial-gradient(1200px 600px at 15% -10%, rgba(59, 130, 246, 0.12), transparent),
+      radial-gradient(900px 500px at 90% 0%, rgba(14, 165, 233, 0.08), transparent);
+    background-attachment: fixed;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-semibold tracking-tight;
+    font-family: 'Sora', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
+  h1 { @apply text-2xl md:text-3xl; }
+  h2 { @apply text-xl md:text-2xl; }
+  h3 { @apply text-lg md:text-xl; }
 }
 
 @layer utilities {
+  .data-grid {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .data-grid thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: hsl(var(--card));
+    box-shadow: inset 0 -1px 0 hsl(var(--border));
+  }
+  .data-grid tbody tr:nth-child(even) {
+    background-color: hsl(var(--muted) / 0.5);
+  }
+  .data-grid tbody tr:hover {
+    background-color: hsl(var(--accent) / 0.5);
+  }
+  .data-grid th, .data-grid td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    vertical-align: middle;
+  }
+  .data-grid th:first-child {
+    border-top-left-radius: 0.75rem;
+  }
+  .data-grid th:last-child {
+    border-top-right-radius: 0.75rem;
+  }
   .status-present {
     color: hsl(var(--status-present));
     background-color: hsl(var(--status-present-bg));

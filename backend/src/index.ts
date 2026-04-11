@@ -2,8 +2,12 @@ import dotenv from "dotenv";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { startServer } from "./server.js";
 import { prisma } from "./lib/prisma.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function loadEnv() {
   dotenv.config();
@@ -22,24 +26,24 @@ function ensurePrismaEngine() {
 
   try {
     const engineName = "query_engine-windows.dll.node";
-    const targetDir = path.dirname(process.execPath);
-    const targetPath = path.join(targetDir, engineName);
+    const candidatePaths = [
+      path.join(__dirname, "..", "node_modules", ".prisma", "client", engineName),
+      path.join(__dirname, "node_modules", ".prisma", "client", engineName)
+    ];
 
-    if (!fs.existsSync(targetPath)) {
-      const snapshotPath = path.join(__dirname, "..", "node_modules", ".prisma", "client", engineName);
-      if (fs.existsSync(snapshotPath)) {
-        fs.mkdirSync(targetDir, { recursive: true });
-        fs.copyFileSync(snapshotPath, targetPath);
-      } else {
-        const fallbackSnapshotPath = path.join(__dirname, "node_modules", ".prisma", "client", engineName);
-        if (fs.existsSync(fallbackSnapshotPath)) {
-          fs.mkdirSync(targetDir, { recursive: true });
-          fs.copyFileSync(fallbackSnapshotPath, targetPath);
-        }
-      }
+    const existing = candidatePaths.find((p) => fs.existsSync(p));
+    if (existing) {
+      process.env.PRISMA_QUERY_ENGINE_LIBRARY = existing;
+      return;
     }
 
-    if (fs.existsSync(targetPath)) {
+    // Last resort: try copying beside node.exe (may require admin)
+    const targetDir = path.dirname(process.execPath);
+    const targetPath = path.join(targetDir, engineName);
+    const fallbackSnapshotPath = candidatePaths[0];
+    if (fs.existsSync(fallbackSnapshotPath) && !fs.existsSync(targetPath)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+      fs.copyFileSync(fallbackSnapshotPath, targetPath);
       process.env.PRISMA_QUERY_ENGINE_LIBRARY = targetPath;
     }
   } catch (err) {

@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, User, Calendar } from 'lucide-react';
+import { BellRinging, CaretDown, UserCircle, CalendarBlank } from '@phosphor-icons/react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,19 +38,22 @@ export function AppHeader({ title, selectedMonth, onMonthChange }: AppHeaderProp
   const role = user?.role ? user.role.toUpperCase() : "";
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center border-b border-border bg-card px-4 gap-3">
+    <header className="sticky top-0 z-30 flex h-[62px] items-center border-b border-border/70 bg-white/75 px-4 md:px-6 gap-3 backdrop-blur">
       <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
-      <Separator orientation="vertical" className="h-5" />
+      <Separator orientation="vertical" className="h-6" />
 
-      <h1 className="text-sm font-semibold text-foreground flex-1">{title}</h1>
+      <div className="flex-1">
+        <h1 className="text-base font-semibold text-foreground">{title}</h1>
+        <p className="text-[11px] text-muted-foreground hidden sm:block">Attendance & payroll command center</p>
+      </div>
 
       <div className="flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2 text-xs h-8">
-              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+            <Button variant="outline" size="sm" className="gap-2 text-xs h-9 rounded-full px-3">
+              <CalendarBlank className="h-4 w-4 text-muted-foreground" weight="duotone" />
               <span>{currentMonthLabel}</span>
-              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              <CaretDown className="h-3 w-3 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72">
@@ -63,7 +66,7 @@ export function AppHeader({ title, selectedMonth, onMonthChange }: AppHeaderProp
                       const month = String(selectedMonthNum || 1).padStart(2, "0");
                       onMonthChange(`${y}-${month}`);
                     }}
-                    className={`flex-1 rounded-md px-2 py-1 text-xs border ${y === selectedYear ? "bg-accent text-accent-foreground border-accent" : "border-border hover:bg-muted/60"}`}
+                    className={`flex-1 rounded-full px-2 py-1 text-xs border ${y === selectedYear ? "bg-accent text-accent-foreground border-accent" : "border-border hover:bg-muted/60"}`}
                   >
                     {y}
                   </button>
@@ -79,7 +82,7 @@ export function AppHeader({ title, selectedMonth, onMonthChange }: AppHeaderProp
                   <button
                     key={label}
                     onClick={() => onMonthChange(value)}
-                    className={`rounded-md px-2 py-1 text-xs border ${isActive ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted/60"}`}
+                    className={`rounded-full px-2 py-1 text-xs border ${isActive ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted/60"}`}
                   >
                     {label}
                   </button>
@@ -89,20 +92,20 @@ export function AppHeader({ title, selectedMonth, onMonthChange }: AppHeaderProp
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button variant="ghost" size="icon" className="h-8 w-8 relative">
-          <Bell className="h-4 w-4 text-muted-foreground" />
+        <Button variant="ghost" size="icon" className="h-9 w-9 relative">
+          <BellRinging className="h-4 w-4 text-muted-foreground" weight="duotone" />
           <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-destructive" />
         </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-2 h-8 px-2">
-              <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
-                <User className="h-3.5 w-3.5 text-primary-foreground" />
+            <Button variant="ghost" size="sm" className="gap-2 h-9 px-2">
+              <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
+                <UserCircle className="h-5 w-5 text-primary" weight="duotone" />
               </div>
-              <span className="text-xs font-medium hidden sm:block">{displayName}</span>
+              <span className="text-xs font-semibold hidden sm:block">{displayName}</span>
               {role && <span className="text-[10px] text-muted-foreground hidden sm:block">{role}</span>}
-              <ChevronDown className="h-3 w-3 text-muted-foreground hidden sm:block" />
+              <CaretDown className="h-3 w-3 text-muted-foreground hidden sm:block" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-40">

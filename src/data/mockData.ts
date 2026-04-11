@@ -111,12 +111,12 @@ export const mockHolidays: Holiday[] = [
 ];
 
 export const mockLeaveTypes: LeaveType[] = [
-  { id: '1', name: 'Casual Leave', code: 'CL', paidLeave: true, maxDays: 12 },
-  { id: '2', name: 'Sick Leave', code: 'SL', paidLeave: true, maxDays: 10 },
-  { id: '3', name: 'Earned Leave', code: 'EL', paidLeave: true, maxDays: 15 },
-  { id: '4', name: 'Maternity Leave', code: 'ML', paidLeave: true, maxDays: 180 },
-  { id: '5', name: 'Loss of Pay', code: 'LOP', paidLeave: false, maxDays: 0 },
-  { id: '6', name: 'Compensatory Off', code: 'CO', paidLeave: true, maxDays: 5 },
+  { id: '1', name: 'Casual Leave', code: 'CL', paidLeave: true, carryForward: false, paymentOnLapse: false, maxDays: 12 },
+  { id: '2', name: 'Sick Leave', code: 'SL', paidLeave: true, carryForward: false, paymentOnLapse: false, maxDays: 10 },
+  { id: '3', name: 'Earned Leave', code: 'EL', paidLeave: true, carryForward: true, paymentOnLapse: false, maxDays: 15 },
+  { id: '4', name: 'Maternity Leave', code: 'ML', paidLeave: true, carryForward: false, paymentOnLapse: false, maxDays: 180 },
+  { id: '5', name: 'Loss of Pay', code: 'LOP', paidLeave: false, carryForward: false, paymentOnLapse: false, maxDays: 0 },
+  { id: '6', name: 'Compensatory Off', code: 'CO', paidLeave: true, carryForward: false, paymentOnLapse: true, maxDays: 5 },
 ];
 
 export const mockDashboardStats: DashboardStats = {

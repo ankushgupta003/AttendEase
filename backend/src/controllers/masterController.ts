@@ -11,7 +11,9 @@ import {
   deleteHoliday,
   listLeaveTypes,
   upsertLeaveType,
-  deleteLeaveType
+  deleteLeaveType,
+  getLeavePolicy,
+  updateLeavePolicy
 } from "../services/attendanceService.js";
 
 function toHolidayDto(holiday: any) {
@@ -181,13 +183,22 @@ export async function listLeaveTypesHandler(req: Request, res: Response, next: N
 
 export async function upsertLeaveTypeHandler(req: Request, res: Response, next: NextFunction) {
   try {
-    const { code, name, paidLeave, maxDays } = req.body as {
+    const { code, name, paidLeave, carryForward, paymentOnLapse, maxDays } = req.body as {
       code: string;
       name: string;
       paidLeave: boolean;
+      carryForward: boolean;
+      paymentOnLapse: boolean;
       maxDays: number;
     };
-    const saved = await upsertLeaveType({ code, name, paidLeave, maxDays });
+    const saved = await upsertLeaveType({
+      code,
+      name,
+      paidLeave: paidLeave ?? true,
+      carryForward: carryForward ?? false,
+      paymentOnLapse: paymentOnLapse ?? false,
+      maxDays: Number.isFinite(maxDays) ? maxDays : 0
+    });
     return res.json(saved);
   } catch (error) {
     return next(error);
@@ -202,6 +213,28 @@ export async function deleteLeaveTypeHandler(req: Request, res: Response, next: 
     }
     await deleteLeaveType(code);
     return res.status(204).send();
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function getLeavePolicyHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const policy = await getLeavePolicy();
+    return res.json(policy);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function updateLeavePolicyHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { yearType } = req.body as { yearType: "CALENDAR" | "FINANCIAL" };
+    if (yearType !== "CALENDAR" && yearType !== "FINANCIAL") {
+      return res.status(400).json({ message: "Invalid yearType. Use CALENDAR or FINANCIAL." });
+    }
+    const policy = await updateLeavePolicy({ yearType });
+    return res.json(policy);
   } catch (error) {
     return next(error);
   }

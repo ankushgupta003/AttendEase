@@ -15,3 +15,7 @@ This folder runs the API server against PostgreSQL for LAN/shared mode.
 
 Clients can then set the API Base URL to:
 `http://<SERVER_IP>:5000/api`
+
+
+kill the backent port
+`taskkill /IM attendease-server.exe /F`

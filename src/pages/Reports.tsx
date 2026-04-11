@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, FileSpreadsheet, Filter, BarChart2, IndianRupee } from 'lucide-react';
+import { DownloadSimple, FileArrowDown, Funnel, ChartBar, CurrencyInr } from '@phosphor-icons/react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,8 +20,14 @@ type SummaryRow = {
   halfDay: number;
   leave: number;
   totalHrs: string;
+  baseHrs: string;
+  baseMinutes: number;
   overtimeHrs: string;
   overtimeMinutes: number;
+  overtimeHrsWeekOff: string;
+  overtimeMinutesWeekOff: number;
+  overtimeHrsRegular: string;
+  overtimeMinutesRegular: number;
   overtimeEligible: boolean;
   paidLeaveDays: number;
   sundayDays: number;
@@ -88,8 +94,14 @@ export default function ReportsPage() {
     halfDay: 0,
     leave: 0,
     totalHrs: "0:00",
+    baseHrs: "0:00",
+    baseMinutes: 0,
     overtimeHrs: "0:00",
     overtimeMinutes: 0,
+    overtimeHrsWeekOff: "0:00",
+    overtimeMinutesWeekOff: 0,
+    overtimeHrsRegular: "0:00",
+    overtimeMinutesRegular: 0,
     overtimeEligible: false,
     paidLeaveDays: 0,
     sundayDays: 0,
@@ -122,6 +134,18 @@ export default function ReportsPage() {
     if (!overtimeVisible[key]) return sum;
     return sum + (row.overtimeMinutes ?? 0);
   }, 0);
+  const visibleWeekOffOvertimeMinutes = filtered.reduce((sum, row) => {
+    if (row.overtimeEligible) return sum + (row.overtimeMinutesWeekOff ?? 0);
+    const key = getRowKey(row);
+    if (!overtimeVisible[key]) return sum;
+    return sum + (row.overtimeMinutesWeekOff ?? 0);
+  }, 0);
+  const visibleRegularOvertimeMinutes = filtered.reduce((sum, row) => {
+    if (row.overtimeEligible) return sum + (row.overtimeMinutesRegular ?? 0);
+    const key = getRowKey(row);
+    if (!overtimeVisible[key]) return sum;
+    return sum + (row.overtimeMinutesRegular ?? 0);
+  }, 0);
 
   return (
     <AppLayout title="Reports" selectedMonth={selectedMonth} onMonthChange={setSelectedMonth}>
@@ -135,7 +159,7 @@ export default function ReportsPage() {
           <CardContent className="py-3">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
-                <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+                <Funnel className="h-3.5 w-3.5 text-muted-foreground" />
                 <Label className="text-xs font-semibold">Filters:</Label>
               </div>
               <Select value={department} onValueChange={setDepartment}>
@@ -154,10 +178,10 @@ export default function ReportsPage() {
         <Tabs defaultValue="summary" className="space-y-4">
           <TabsList className="h-9">
             <TabsTrigger value="summary" className="text-xs gap-1.5">
-              <BarChart2 className="h-3.5 w-3.5" /> Attendance Summary
+              <ChartBar className="h-3.5 w-3.5" /> Attendance Summary
             </TabsTrigger>
             <TabsTrigger value="salary" className="text-xs gap-1.5">
-              <IndianRupee className="h-3.5 w-3.5" /> Salary Sheet
+              <CurrencyInr className="h-3.5 w-3.5" /> Salary Sheet
             </TabsTrigger>
           </TabsList>
 
@@ -182,15 +206,15 @@ export default function ReportsPage() {
                       link.remove();
                     }}
                   >
-                    <FileSpreadsheet className="h-3.5 w-3.5" />
-                    <Download className="h-3 w-3" /> Export Excel
+                    <FileArrowDown className="h-3.5 w-3.5" />
+                    <DownloadSimple className="h-3 w-3" /> Export Excel
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="rounded-lg border">
                   <div className="w-full overflow-x-auto pb-2">
-                    <table className="min-w-max text-xs whitespace-nowrap">
+                    <table className="w-full text-xs data-grid">
                     <thead className="whitespace-nowrap">
                       <tr className="bg-muted/40 border-b">
                         {[
@@ -209,8 +233,11 @@ export default function ReportsPage() {
                           'Paid Sundays',
                           'Paid Holidays',
                           'Total Paid Days',
-                          'Total Hours',
-                          'Overtime'
+                          'Base Hours',
+                          'OT',
+                          'Week Off OT',
+                          'Total OT',
+                          'Total Hours'
                         ].map(h => (
                           <th key={h} className="text-left px-4 py-2.5 font-semibold text-muted-foreground">{h}</th>
                         ))}
@@ -219,7 +246,7 @@ export default function ReportsPage() {
                     <tbody className="whitespace-nowrap">
                       {filtered.length === 0 ? (
                         <tr>
-                          <td colSpan={17} className="py-8 text-center text-sm text-muted-foreground">No attendance data found for selected month/department.</td>
+                          <td colSpan={20} className="py-8 text-center text-sm text-muted-foreground">No attendance data found for selected month/department.</td>
                         </tr>
                       ) : filtered.map(row => (
                         <tr key={getRowKey(row) || `${row.name}-${Math.random()}`} className="border-b border-border/50 last:border-0 hover:bg-muted/20">
@@ -244,7 +271,7 @@ export default function ReportsPage() {
                           <td className="px-4 py-3 font-medium">{row.payableSundays ?? 0}</td>
                           <td className="px-4 py-3 font-medium">{row.payableHolidays ?? 0}</td>
                           <td className="px-4 py-3 font-semibold">{formatPaidDays(row.totalPaidDays ?? 0)}</td>
-                          <td className="px-4 py-3 font-mono font-medium">{row.totalHrs}</td>
+                          <td className="px-4 py-3 font-mono font-medium">{row.baseHrs}</td>
                           <td className="px-4 py-3">
                             {row.overtimeEligible ? (
                               <span className="font-mono font-medium">{row.overtimeHrs}</span>
@@ -275,6 +302,22 @@ export default function ReportsPage() {
                               </div>
                             )}
                           </td>
+                          <td className="px-4 py-3">
+                            {row.overtimeEligible || overtimeVisible[getRowKey(row)] ? (
+                              <span className="font-mono font-medium">{row.overtimeHrsWeekOff}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {row.overtimeEligible || overtimeVisible[getRowKey(row)] ? (
+                              <span className="font-mono font-medium">{row.overtimeHrsRegular}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 font-mono font-medium">{row.overtimeHrs}</td>
+                          <td className="px-4 py-3 font-mono font-medium">{row.totalHrs}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -294,7 +337,11 @@ export default function ReportsPage() {
                         <td className="px-4 py-2.5 font-bold">{filtered.reduce((a, r) => a + (r.payableHolidays ?? 0), 0)}</td>
                         <td className="px-4 py-2.5 font-bold">{formatPaidDays(filtered.reduce((a, r) => a + (r.totalPaidDays ?? 0), 0))}</td>
                         <td className="px-4 py-2.5"></td>
+                        <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(filtered.reduce((a, r) => a + (r.baseMinutes ?? 0), 0))}</td>
+                        <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(visibleRegularOvertimeMinutes)}</td>
+                        <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(visibleWeekOffOvertimeMinutes)}</td>
                         <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(visibleOvertimeMinutes)}</td>
+                        <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(filtered.reduce((a, r) => a + (r.baseMinutes ?? 0) + (r.overtimeMinutes ?? 0), 0))}</td>
                       </tr>
                     </tfoot>
                     </table>
@@ -325,15 +372,15 @@ export default function ReportsPage() {
                       link.remove();
                     }}
                   >
-                    <FileSpreadsheet className="h-3.5 w-3.5" />
-                    <Download className="h-3 w-3" /> Export Excel
+                    <FileArrowDown className="h-3.5 w-3.5" />
+                    <DownloadSimple className="h-3 w-3" /> Export Excel
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="rounded-lg border">
                   <div className="w-full overflow-x-auto pb-2">
-                    <table className="min-w-max text-xs whitespace-nowrap">
+                    <table className="w-full text-xs data-grid">
                     <thead className="whitespace-nowrap">
                       <tr className="bg-muted/40 border-b">
                         {['Code', 'Name', 'Department', 'Working Days', 'LOP Days', 'Gross (₹)', 'Deductions (₹)', 'Net Salary (₹)'].map(h => (

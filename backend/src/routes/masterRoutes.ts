@@ -12,7 +12,9 @@ import {
   downloadHolidayTemplate,
   listLeaveTypesHandler,
   upsertLeaveTypeHandler,
-  deleteLeaveTypeHandler
+  deleteLeaveTypeHandler,
+  getLeavePolicyHandler,
+  updateLeavePolicyHandler
 } from "../controllers/masterController.js";
 import { requireRole } from "../middleware/role.js";
 
@@ -34,5 +36,8 @@ router.get("/leave-types", listLeaveTypesHandler);
 router.post("/leave-types", requireRole(["ADMIN", "HR"]), upsertLeaveTypeHandler);
 router.patch("/leave-types", requireRole(["ADMIN", "HR"]), upsertLeaveTypeHandler);
 router.delete("/leave-types/:code", requireRole(["ADMIN", "HR"]), deleteLeaveTypeHandler);
+
+router.get("/leave-policy", getLeavePolicyHandler);
+router.patch("/leave-policy", requireRole(["ADMIN", "HR"]), updateLeavePolicyHandler);
 
 export default router;

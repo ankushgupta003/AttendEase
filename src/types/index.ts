@@ -68,7 +68,14 @@ export interface LeaveType {
   name: string;
   code: string;
   paidLeave: boolean;
+  carryForward: boolean;
+  paymentOnLapse: boolean;
   maxDays: number;
+}
+
+export interface LeavePolicy {
+  id: string;
+  yearType: 'CALENDAR' | 'FINANCIAL';
 }
 
 export interface DashboardStats {
