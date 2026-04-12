@@ -5,7 +5,7 @@ declare module "electron-updater" {
     allowDowngrade: boolean;
     checkForUpdates: () => Promise<unknown>;
     downloadUpdate: () => void;
-    quitAndInstall: () => void;
+    quitAndInstall: (isSilent?: boolean, isForceRunAfter?: boolean) => void;
     on: (event: string, listener: (...args: any[]) => void) => void;
   };
 }
