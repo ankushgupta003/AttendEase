@@ -1,7 +1,7 @@
 {
   "name": "attendease",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.1.6",
   "type": "module",
   "main": "electron/dist/main.cjs",
   "scripts": {

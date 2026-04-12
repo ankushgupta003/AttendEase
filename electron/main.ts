@@ -335,7 +335,7 @@ async function setupUpdater(mainWindow?: BrowserWindow) {
     });
 
     if (result.response === 0) {
-      autoUpdater.quitAndInstall();
+      autoUpdater.quitAndInstall(true, true);
     }
   });
 
