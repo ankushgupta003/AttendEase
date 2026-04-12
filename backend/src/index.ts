@@ -50,6 +50,30 @@ function ensurePrismaEngine() {
   }
 }
 
+function resolveDbPathFromEnv() {
+  const url = process.env.DATABASE_URL ?? "";
+  if (!url.startsWith("file:")) return null;
+  const rawPath = url.replace(/^file:/, "");
+  if (!rawPath) return null;
+  const normalized = rawPath.replace(/\\/g, "/");
+  if (normalized.startsWith("/")) {
+    return path.normalize(normalized);
+  }
+  return path.resolve(process.cwd(), normalized);
+}
+
+function appendMigrationLog(line: string) {
+  try {
+    const dbPath = resolveDbPathFromEnv();
+    const logDir = dbPath ? path.dirname(dbPath) : process.cwd();
+    const logPath = path.join(logDir, "migration.log");
+    const stamp = new Date().toISOString();
+    fs.appendFileSync(logPath, `[${stamp}] ${line}\n`);
+  } catch (err) {
+    console.error("Failed to write migration log:", err);
+  }
+}
+
 async function ensureOvertimeEligibleColumn() {
   try {
     const columns = await prisma.$queryRawUnsafe<any[]>(`PRAGMA table_info("Employee")`);
@@ -69,8 +93,10 @@ async function runSafeMigrationsIfNeeded() {
 
   if (!shouldMigrate) return;
 
+  appendMigrationLog("Starting migration run.");
   await runSqlMigrations();
   await ensureOvertimeEligibleColumn();
+  appendMigrationLog("Migration run complete.");
 }
 
 function findMigrationsDir() {
@@ -161,9 +187,11 @@ function splitSqlStatements(sql: string) {
 async function runSqlMigrations() {
   const migrationsDir = findMigrationsDir();
   if (!migrationsDir) {
+    appendMigrationLog("Migration directory not found. Skipping SQL migrations.");
     console.warn("Migration directory not found. Skipping SQL migrations.");
     return;
   }
+  appendMigrationLog(`Using migrations directory: ${migrationsDir}`);
 
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "MigrationHistory" (
@@ -177,6 +205,7 @@ async function runSqlMigrations() {
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
+  appendMigrationLog(`Found ${entries.length} migration folders.`);
 
   for (const id of entries) {
     const safeId = id.replace(/'/g, "''");
@@ -184,17 +213,20 @@ async function runSqlMigrations() {
       `SELECT id FROM "MigrationHistory" WHERE id='${safeId}' LIMIT 1`
     );
     if (Array.isArray(existing) && existing.length > 0) {
+      appendMigrationLog(`Skipping already applied migration: ${id}`);
       continue;
     }
 
     const migrationPath = path.join(migrationsDir, id, "migration.sql");
     if (!fs.existsSync(migrationPath)) {
+      appendMigrationLog(`Migration SQL missing for ${id}. Skipping.`);
       console.warn(`Migration SQL missing for ${id}. Skipping.`);
       continue;
     }
 
     const sql = fs.readFileSync(migrationPath, "utf-8");
     const statements = splitSqlStatements(sql);
+    appendMigrationLog(`Applying migration ${id} (${statements.length} statements).`);
 
     try {
       await prisma.$executeRawUnsafe("BEGIN");
@@ -205,8 +237,10 @@ async function runSqlMigrations() {
         `INSERT INTO "MigrationHistory"(id) VALUES ('${safeId}')`
       );
       await prisma.$executeRawUnsafe("COMMIT");
+      appendMigrationLog(`Migration ${id} applied successfully.`);
     } catch (err) {
       await prisma.$executeRawUnsafe("ROLLBACK");
+      appendMigrationLog(`Migration ${id} failed: ${String(err)}`);
       console.error(`Migration failed for ${id}:`, err);
       throw err;
     }
