@@ -204,6 +204,72 @@ async function setupUpdater(mainWindow?: BrowserWindow) {
 
   const { autoUpdater } = await import("electron-updater");
   autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.allowDowngrade = false;
+  let progressWindow: BrowserWindow | null = null;
+
+  const showProgressWindow = async () => {
+    if (progressWindow) {
+      progressWindow.focus();
+      return;
+    }
+    progressWindow = new BrowserWindow({
+      width: 360,
+      height: 180,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      modal: Boolean(mainWindow),
+      parent: mainWindow,
+      show: false,
+      title: `${APP_NAME} Update`,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    });
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Update</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; background: #f7f7f7; }
+            h1 { font-size: 16px; margin: 0 0 12px; }
+            .bar { width: 100%; height: 10px; background: #e2e2e2; border-radius: 6px; overflow: hidden; }
+            .fill { height: 100%; width: 0%; background: #2f7cf6; transition: width 0.2s ease; }
+            .percent { margin-top: 10px; font-size: 14px; color: #333; }
+          </style>
+        </head>
+        <body>
+          <h1>Downloading update…</h1>
+          <div class="bar"><div class="fill" id="fill"></div></div>
+          <div class="percent" id="percent">0%</div>
+        </body>
+      </html>
+    `;
+    const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+    await progressWindow.loadURL(dataUrl);
+    progressWindow.show();
+  };
+
+  const updateProgressWindow = (percent: number) => {
+    if (!progressWindow) return;
+    const clamped = Math.max(0, Math.min(100, percent));
+    const percentText = `${Math.round(clamped)}%`;
+    void progressWindow.webContents.executeJavaScript(
+      `document.getElementById("percent").textContent = ${JSON.stringify(percentText)};
+       document.getElementById("fill").style.width = ${JSON.stringify(percentText)};`
+    );
+  };
+
+  const closeProgressWindow = () => {
+    if (!progressWindow) return;
+    progressWindow.close();
+    progressWindow = null;
+  };
 
   autoUpdater.on("update-available", async () => {
     const result = await dialog.showMessageBox({
@@ -217,11 +283,26 @@ async function setupUpdater(mainWindow?: BrowserWindow) {
     });
 
     if (result.response === 0) {
+      if (mainWindow) {
+        mainWindow.setProgressBar(0);
+      }
+      await showProgressWindow();
       autoUpdater.downloadUpdate();
     }
   });
 
+  autoUpdater.on("download-progress", (progress) => {
+    if (!mainWindow) return;
+    const percent = Math.max(0, Math.min(100, progress.percent ?? 0));
+    mainWindow.setProgressBar(percent / 100);
+    updateProgressWindow(percent);
+  });
+
   autoUpdater.on("update-downloaded", async () => {
+    if (mainWindow) {
+      mainWindow.setProgressBar(-1);
+    }
+    closeProgressWindow();
     const result = await dialog.showMessageBox({
       type: "info",
       title: "Update Ready",
@@ -237,8 +318,21 @@ async function setupUpdater(mainWindow?: BrowserWindow) {
     }
   });
 
+  autoUpdater.on("update-not-available", async () => {
+    if (!mainWindow) return;
+    await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: `${APP_NAME} Updates`,
+      message: "You already have the latest version."
+    });
+  });
+
   autoUpdater.on("error", (err: unknown) => {
     console.error("Auto update error:", err);
+    if (mainWindow) {
+      mainWindow.setProgressBar(-1);
+    }
+    closeProgressWindow();
     if (mainWindow) {
       void dialog.showMessageBox(mainWindow, {
         type: "error",
