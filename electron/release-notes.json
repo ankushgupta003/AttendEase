@@ -1,0 +1,15 @@
+{
+  "0.1.3": [
+    "What’s new:",
+    "- Leave policy support added (new Leave Policy settings).",
+    "- Leave type enhancements (Carry Forward + Payment on Lapse fields).",
+    "- Automatic database migration after update (no manual steps required).",
+    "- Automatic database backup before migrations.",
+    "",
+    "Fixes:",
+    "- Resolved internal server errors related to leave policy and leave type screens after update.",
+    "",
+    "No action required:",
+    "- Just update and restart the app. The migration runs automatically."
+  ]
+}

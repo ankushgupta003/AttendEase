@@ -35,11 +35,17 @@ const DEFAULT_PORT = 5000;
 const isDev = !app.isPackaged;
 const APP_NAME = "AttendEase";
 
-function ensureRuntimeConfig() {
+type AppConfig = {
+  jwtSecret?: string;
+  lastMigratedVersion?: string;
+  lastShownReleaseNotesVersion?: string;
+};
+
+function loadAppConfig() {
   const userDataDir = app.getPath("userData");
   const configPath = path.join(userDataDir, "config.json");
 
-  let config: { jwtSecret?: string } = {};
+  let config: AppConfig = {};
   if (fs.existsSync(configPath)) {
     try {
       config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
@@ -48,12 +54,43 @@ function ensureRuntimeConfig() {
     }
   }
 
+  return { config, configPath };
+}
+
+function saveAppConfig(configPath: string, config: AppConfig) {
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+}
+
+function ensureRuntimeConfig() {
+  const { config, configPath } = loadAppConfig();
+
   if (!config.jwtSecret) {
     config.jwtSecret = crypto.randomBytes(32).toString("hex");
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    saveAppConfig(configPath, config);
   }
 
   process.env.JWT_SECRET = process.env.JWT_SECRET ?? config.jwtSecret;
+  return { config, configPath };
+}
+
+function loadReleaseNotes(): Record<string, string> {
+  try {
+    const notesPath = isDev
+      ? path.join(process.cwd(), "electron", "release-notes.json")
+      : path.join(process.resourcesPath, "release-notes.json");
+    if (!fs.existsSync(notesPath)) {
+      return {};
+    }
+    const raw = JSON.parse(fs.readFileSync(notesPath, "utf-8")) as Record<string, string[]>;
+    const normalized: Record<string, string> = {};
+    for (const [version, lines] of Object.entries(raw)) {
+      normalized[version] = Array.isArray(lines) ? lines.join("\n") : String(lines ?? "");
+    }
+    return normalized;
+  } catch (err) {
+    console.error("Failed to load release notes:", err);
+    return {};
+  }
 }
 
 async function ensureDatabase() {
@@ -82,13 +119,38 @@ async function ensureDatabase() {
   return { dbPath, dbUrl };
 }
 
+function createDbBackup(dbPath: string, versionLabel: string) {
+  try {
+    if (!fs.existsSync(dbPath)) return;
+    const dir = path.dirname(dbPath);
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const safeVersion = versionLabel.replace(/[^0-9A-Za-z.-]/g, "_");
+    const backupName = `attendease-${safeVersion}-${stamp}.db.bak`;
+    const backupPath = path.join(dir, backupName);
+    fs.copyFileSync(dbPath, backupPath);
+  } catch (err) {
+    console.error("Database backup failed:", err);
+  }
+}
+
 async function startBackend() {
   if (isDev) {
     return;
   }
 
-  ensureRuntimeConfig();
-  await ensureDatabase();
+  const { config, configPath } = ensureRuntimeConfig();
+  const currentVersion = app.getVersion();
+  const shouldMigrate = config.lastMigratedVersion !== currentVersion;
+  if (shouldMigrate) {
+    process.env.MIGRATE_ON_START = "1";
+    config.lastMigratedVersion = currentVersion;
+    saveAppConfig(configPath, config);
+  }
+
+  const { dbPath } = await ensureDatabase();
+  if (shouldMigrate) {
+    createDbBackup(dbPath, currentVersion);
+  }
   process.env.PORT = String(process.env.PORT ?? DEFAULT_PORT);
 
   const serverPath = path.join(process.resourcesPath, "backend", "dist", "server.js");
@@ -201,6 +263,23 @@ app.whenReady().then(async () => {
 
   await startBackend();
   const mainWindow = await createWindow();
+  const { config, configPath } = ensureRuntimeConfig();
+  const currentVersion = app.getVersion();
+  const notes = loadReleaseNotes()[currentVersion];
+  const shouldShowNotes =
+    !isDev &&
+    Boolean(notes) &&
+    config.lastShownReleaseNotesVersion !== currentVersion;
+  if (shouldShowNotes) {
+    await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: `${APP_NAME} Updated`,
+      message: `What’s New in ${APP_NAME} v${currentVersion}`,
+      detail: notes
+    });
+    config.lastShownReleaseNotesVersion = currentVersion;
+    saveAppConfig(configPath, config);
+  }
 
   const createUpdateMenuItem = (): MenuItemConstructorOptions => ({
     label: "Check for Updates",

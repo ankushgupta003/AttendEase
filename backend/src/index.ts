@@ -1,6 +1,5 @@
 import dotenv from "dotenv";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { startServer } from "./server.js";
@@ -63,9 +62,160 @@ async function ensureOvertimeEligibleColumn() {
   }
 }
 
+async function runSafeMigrationsIfNeeded() {
+  const shouldMigrate =
+    process.env.MIGRATE_ON_START === "1" ||
+    process.env.MIGRATE_ON_START === "true";
+
+  if (!shouldMigrate) return;
+
+  await runSqlMigrations();
+  await ensureOvertimeEligibleColumn();
+}
+
+function findMigrationsDir() {
+  const candidates = [
+    path.join(__dirname, "..", "prisma", "migrations"),
+    path.join(process.cwd(), "prisma", "migrations")
+  ];
+
+  return candidates.find((candidate) => fs.existsSync(candidate));
+}
+
+function splitSqlStatements(sql: string) {
+  const statements: string[] = [];
+  let current = "";
+  let inSingle = false;
+  let inDouble = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let i = 0; i < sql.length; i += 1) {
+    const char = sql[i];
+    const next = sql[i + 1];
+
+    if (inLineComment) {
+      current += char;
+      if (char === "\n") {
+        inLineComment = false;
+      }
+      continue;
+    }
+
+    if (inBlockComment) {
+      current += char;
+      if (char === "*" && next === "/") {
+        current += next;
+        i += 1;
+        inBlockComment = false;
+      }
+      continue;
+    }
+
+    if (!inSingle && !inDouble) {
+      if (char === "-" && next === "-") {
+        current += char + next;
+        i += 1;
+        inLineComment = true;
+        continue;
+      }
+      if (char === "/" && next === "*") {
+        current += char + next;
+        i += 1;
+        inBlockComment = true;
+        continue;
+      }
+    }
+
+    if (char === "'" && !inDouble) {
+      inSingle = !inSingle;
+      current += char;
+      continue;
+    }
+    if (char === `"` && !inSingle) {
+      inDouble = !inDouble;
+      current += char;
+      continue;
+    }
+
+    if (char === ";" && !inSingle && !inDouble) {
+      const trimmed = current.trim();
+      if (trimmed) {
+        statements.push(trimmed);
+      }
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  const tail = current.trim();
+  if (tail) {
+    statements.push(tail);
+  }
+
+  return statements;
+}
+
+async function runSqlMigrations() {
+  const migrationsDir = findMigrationsDir();
+  if (!migrationsDir) {
+    console.warn("Migration directory not found. Skipping SQL migrations.");
+    return;
+  }
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "MigrationHistory" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "appliedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const entries = fs
+    .readdirSync(migrationsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+
+  for (const id of entries) {
+    const safeId = id.replace(/'/g, "''");
+    const existing = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT id FROM "MigrationHistory" WHERE id='${safeId}' LIMIT 1`
+    );
+    if (Array.isArray(existing) && existing.length > 0) {
+      continue;
+    }
+
+    const migrationPath = path.join(migrationsDir, id, "migration.sql");
+    if (!fs.existsSync(migrationPath)) {
+      console.warn(`Migration SQL missing for ${id}. Skipping.`);
+      continue;
+    }
+
+    const sql = fs.readFileSync(migrationPath, "utf-8");
+    const statements = splitSqlStatements(sql);
+
+    try {
+      await prisma.$executeRawUnsafe("BEGIN");
+      for (const statement of statements) {
+        await prisma.$executeRawUnsafe(statement);
+      }
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "MigrationHistory"(id) VALUES ('${safeId}')`
+      );
+      await prisma.$executeRawUnsafe("COMMIT");
+    } catch (err) {
+      await prisma.$executeRawUnsafe("ROLLBACK");
+      console.error(`Migration failed for ${id}:`, err);
+      throw err;
+    }
+  }
+}
+
 void (async () => {
   loadEnv();
   ensurePrismaEngine();
-  await ensureOvertimeEligibleColumn();
+  await runSafeMigrationsIfNeeded();
   startServer();
 })();
