@@ -116,7 +116,18 @@ async function ensureDatabase() {
   const dbUrl = `file:${normalizedPath}`;
   process.env.DATABASE_URL = dbUrl;
 
+  appendUpdateLog(dbPath, `DATABASE_URL set to ${dbUrl}`);
   return { dbPath, dbUrl };
+}
+
+function appendUpdateLog(dbPath: string, line: string) {
+  try {
+    const logPath = path.join(path.dirname(dbPath), "migration.log");
+    const stamp = new Date().toISOString();
+    fs.appendFileSync(logPath, `[${stamp}] ${line}\n`);
+  } catch (err) {
+    console.error("Failed to write update log:", err);
+  }
 }
 
 function createDbBackup(dbPath: string, versionLabel: string) {
@@ -148,8 +159,10 @@ async function startBackend() {
   }
 
   const { dbPath } = await ensureDatabase();
+  appendUpdateLog(dbPath, `App version ${currentVersion}, shouldMigrate=${shouldMigrate}`);
   if (shouldMigrate) {
     createDbBackup(dbPath, currentVersion);
+    appendUpdateLog(dbPath, "Database backup created.");
   }
   process.env.PORT = String(process.env.PORT ?? DEFAULT_PORT);
 
@@ -287,6 +300,11 @@ async function setupUpdater(mainWindow?: BrowserWindow) {
         mainWindow.setProgressBar(0);
       }
       await showProgressWindow();
+      setTimeout(() => {
+        if (!progressWindow) {
+          void showProgressWindow();
+        }
+      }, 500);
       autoUpdater.downloadUpdate();
     }
   });
@@ -295,6 +313,9 @@ async function setupUpdater(mainWindow?: BrowserWindow) {
     if (!mainWindow) return;
     const percent = Math.max(0, Math.min(100, progress.percent ?? 0));
     mainWindow.setProgressBar(percent / 100);
+    if (!progressWindow) {
+      void showProgressWindow();
+    }
     updateProgressWindow(percent);
   });
 
