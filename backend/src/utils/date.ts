@@ -57,10 +57,35 @@ export function parseFlexibleDate(value: unknown, fallbackYear?: number) {
 
 export function parseTime(value: unknown) {
   if (value == null) return null;
+  
+  // Handle numeric values (Excel time format: decimal 0-1 representing hours of day)
+  if (typeof value === "number") {
+    // Excel time is 0-1 representing 0:00 to 24:00
+    const hours = Math.floor(value * 24);
+    const minutes = Math.round((value * 24 - hours) * 60);
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  }
+  
+  // Handle Date objects
+  if (value instanceof Date) {
+    const hours = String(value.getHours()).padStart(2, "0");
+    const minutes = String(value.getMinutes()).padStart(2, "0");
+    return `${hours}:${minutes}`;
+  }
+  
+  // Handle string formats
   const str = String(value).trim();
   if (!str) return null;
-  const match = str.match(/\b(\d{1,2}:\d{2})\b/);
-  return match ? match[1] : null;
+  
+  // Extract HH:MM format
+  const match = str.match(/\b(\d{1,2}):(\d{2})\b/);
+  if (match) {
+    const hours = String(match[1]).padStart(2, "0");
+    const minutes = match[2];
+    return `${hours}:${minutes}`;
+  }
+  
+  return null;
 }
 
 export function computeWorkingMinutes(date: dayjs.Dayjs, inTime?: string | null, outTime?: string | null) {

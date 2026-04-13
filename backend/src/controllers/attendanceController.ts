@@ -226,7 +226,18 @@ export async function exportAttendance(req: Request, res: Response, next: NextFu
   try {
     const month = String(req.query.month ?? "");
     const rows = await listAttendance({ month, includeNonWorking: true });
-    const worksheet = xlsx.utils.json_to_sheet(rows);
+    
+    // Transform to upload template format
+    const exportRows = rows.map((row: any) => ({
+      employeeId: row.employeeCode,
+      name: row.employeeName,
+      department: row.department,
+      date: row.date,
+      punchIn: row.inTime || "",
+      punchOut: row.outTime || ""
+    }));
+    
+    const worksheet = xlsx.utils.json_to_sheet(exportRows);
     const workbook = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(workbook, worksheet, "Attendance");
     const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
