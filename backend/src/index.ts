@@ -86,6 +86,18 @@ async function ensureOvertimeEligibleColumn() {
   }
 }
 
+async function ensureSalaryColumn() {
+  try {
+    const columns = await prisma.$queryRawUnsafe<any[]>(`PRAGMA table_info("Employee")`);
+    const hasColumn = Array.isArray(columns) && columns.some((col) => col?.name === "salary");
+    if (!hasColumn) {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Employee" ADD COLUMN "salary" INTEGER NOT NULL DEFAULT 0`);
+    }
+  } catch (err) {
+    console.error("Failed to ensure salary column:", err);
+  }
+}
+
 async function runSafeMigrationsIfNeeded() {
   const shouldMigrate =
     process.env.MIGRATE_ON_START === "1" ||
@@ -96,6 +108,7 @@ async function runSafeMigrationsIfNeeded() {
   appendMigrationLog("Starting migration run.");
   await runSqlMigrations();
   await ensureOvertimeEligibleColumn();
+  await ensureSalaryColumn();
   appendMigrationLog("Migration run complete.");
 }
 
@@ -231,15 +244,33 @@ async function runSqlMigrations() {
     try {
       await prisma.$executeRawUnsafe("BEGIN");
       for (const statement of statements) {
-        await prisma.$executeRawUnsafe(statement);
+        try {
+          await prisma.$executeRawUnsafe(statement);
+        } catch (stmtErr: any) {
+          // If a table or index already exists, skip it silently
+          // This can happen if migrations were partially applied
+          if (
+            stmtErr?.code === "P2010" &&
+            (stmtErr?.meta?.message?.includes("already exists") ||
+             stmtErr?.meta?.message?.includes("UNIQUE constraint failed"))
+          ) {
+            appendMigrationLog(`  Already applied: ${statement.substring(0, 50)}...`);
+            continue;
+          }
+          throw stmtErr;
+        }
       }
       await prisma.$executeRawUnsafe(
         `INSERT INTO "MigrationHistory"(id) VALUES ('${safeId}')`
       );
       await prisma.$executeRawUnsafe("COMMIT");
       appendMigrationLog(`Migration ${id} applied successfully.`);
-    } catch (err) {
-      await prisma.$executeRawUnsafe("ROLLBACK");
+    } catch (err: any) {
+      try {
+        await prisma.$executeRawUnsafe("ROLLBACK");
+      } catch {
+        // Rollback might fail if transaction wasn't started; ignore
+      }
       appendMigrationLog(`Migration ${id} failed: ${String(err)}`);
       console.error(`Migration failed for ${id}:`, err);
       throw err;

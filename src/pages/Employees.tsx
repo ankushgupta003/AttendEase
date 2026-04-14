@@ -167,6 +167,7 @@ export default function EmployeesPage() {
       shift: 'General',
       active: true,
       overtimeEligible: true,
+      salary: 0,
       email: '',
       designation: ''
     });
@@ -183,6 +184,7 @@ export default function EmployeesPage() {
         shiftName: editEmp.shift,
         active: editEmp.active,
         overtimeEligible: editEmp.overtimeEligible,
+        salary: editEmp.salary,
         email: editEmp.email,
         designation: editEmp.designation
       });
@@ -194,6 +196,7 @@ export default function EmployeesPage() {
         department: editEmp.department,
         active: editEmp.active,
         overtimeEligible: editEmp.overtimeEligible,
+        salary: editEmp.salary,
         email: editEmp.email,
         designation: editEmp.designation
       });
@@ -331,6 +334,16 @@ export default function EmployeesPage() {
               <div className="space-y-1.5">
                 <Label>Designation</Label>
                 <Input value={editEmp.designation || ''} onChange={e => setEditEmp(p => p && ({ ...p, designation: e.target.value }))} className="h-8 text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Monthly Salary</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={editEmp.salary ?? ''}
+                  onChange={e => setEditEmp(p => p && ({ ...p, salary: e.target.value ? Number(e.target.value) : undefined }))}
+                  className="h-8 text-xs"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Email</Label>

@@ -1020,6 +1020,7 @@ export async function createEmployee(payload: {
   email?: string;
   phone?: string;
   designation?: string;
+  salary?: number;
 }) {
   const shift = payload.shiftName ? await getOrCreateShiftByName(payload.shiftName) : await getOrCreateDefaultShift();
   return prisma.employee.create({
@@ -1032,7 +1033,8 @@ export async function createEmployee(payload: {
       overtimeEligible: payload.overtimeEligible ?? true,
       email: payload.email,
       phone: payload.phone,
-      designation: payload.designation
+      designation: payload.designation,
+      salary: payload.salary ?? 0
     },
     include: { shift: true }
   });
@@ -1047,6 +1049,7 @@ export async function updateEmployee(employeeId: string, payload: {
   email?: string;
   phone?: string;
   designation?: string;
+  salary?: number;
 }) {
   return prisma.employee.update({
     where: { id: employeeId },
@@ -1205,6 +1208,7 @@ export async function getAttendanceSummary(month: string, department?: string) {
     overtimeMinutesRegular: number;
     baseMinutes: number;
     overtimeEligible: boolean;
+    salary: number;
   }>();
 
   for (const row of rows) {
@@ -1227,7 +1231,8 @@ export async function getAttendanceSummary(month: string, department?: string) {
       overtimeMinutesWeekOff: 0,
       overtimeMinutesRegular: 0,
       baseMinutes: 0,
-      overtimeEligible: row.employee.overtimeEligible ?? false
+      overtimeEligible: row.employee.overtimeEligible ?? false,
+      salary: row.employee.salary ?? Number(process.env.DEFAULT_GROSS_SALARY ?? 50000)
     };
 
     if (row.status === AttendanceStatus.PRESENT || row.status === AttendanceStatus.LATE || row.status === AttendanceStatus.HALF_DAY) {
@@ -1299,16 +1304,26 @@ export async function getAttendanceSummary(month: string, department?: string) {
 
 export async function getSalarySheet(month: string, department?: string) {
   const summary = await getAttendanceSummary(month, department);
-  const grossSalary = Number(process.env.DEFAULT_GROSS_SALARY ?? 50000);
   const workingDays = Number(process.env.WORKING_DAYS ?? 26);
   const latePenalty = Number(process.env.LATE_PENALTY ?? 200);
 
   return summary.map((row) => {
-    const lopDays = row.lopDays;
-    const deductions = Math.round((lopDays * grossSalary / workingDays) + (row.late * latePenalty));
+    const monthlySalary = row.salary ?? Number(process.env.DEFAULT_GROSS_SALARY ?? 50000);
+    const hourlyRate = monthlySalary / workingDays / 8;
+    const overtimeEligible = row.overtimeEligible ?? false;
+    const normalOtSalary = overtimeEligible ? Math.round((row.overtimeMinutesRegular / 60) * hourlyRate * 1.5) : 0;
+    const sundayHolidayOtSalary = overtimeEligible ? Math.round((row.overtimeMinutesWeekOff / 60) * hourlyRate * 1.0) : 0;
+    const totalOtSalary = normalOtSalary + sundayHolidayOtSalary;
+    const grossSalary = Math.round(monthlySalary + totalOtSalary);
+    const deductions = Math.round((row.lopDays * monthlySalary / workingDays) + (row.late * latePenalty));
     const netSalary = Math.round(grossSalary - deductions);
+
     return {
       ...row,
+      salary: monthlySalary,
+      normalOtSalary,
+      sundayHolidayOtSalary,
+      totalOtSalary,
       grossSalary,
       deductions,
       netSalary

@@ -9,6 +9,7 @@ export interface Employee {
   shift: string;
   active: boolean;
   overtimeEligible: boolean;
+  salary?: number;
   email?: string;
   phone?: string;
   designation?: string;

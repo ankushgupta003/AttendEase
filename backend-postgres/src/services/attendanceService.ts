@@ -883,6 +883,7 @@ export async function createEmployee(payload: {
   email?: string;
   phone?: string;
   designation?: string;
+  salary?: number;
 }) {
   const shift = payload.shiftName ? await getOrCreateShiftByName(payload.shiftName) : await getOrCreateDefaultShift();
   return prisma.employee.create({
@@ -895,7 +896,8 @@ export async function createEmployee(payload: {
       overtimeEligible: payload.overtimeEligible ?? true,
       email: payload.email,
       phone: payload.phone,
-      designation: payload.designation
+      designation: payload.designation,
+      salary: payload.salary ?? 0
     },
     include: { shift: true }
   });
@@ -910,6 +912,7 @@ export async function updateEmployee(employeeId: string, payload: {
   email?: string;
   phone?: string;
   designation?: string;
+  salary?: number;
 }) {
   return prisma.employee.update({
     where: { id: employeeId },
@@ -1034,8 +1037,12 @@ export async function getAttendanceSummary(month: string, department?: string) {
     sundayDays: number;
     holidayDays: number;
     totalMinutes: number;
-    overtimeMinutes: number;
+    overtimeMinutesTotal: number;
+    overtimeMinutesWeekOff: number;
+    overtimeMinutesRegular: number;
+    baseMinutes: number;
     overtimeEligible: boolean;
+    salary: number;
   }>();
 
   for (const row of rows) {
@@ -1054,8 +1061,12 @@ export async function getAttendanceSummary(month: string, department?: string) {
       sundayDays: 0,
       holidayDays: 0,
       totalMinutes: 0,
-      overtimeMinutes: 0,
-      overtimeEligible: row.employee.overtimeEligible ?? false
+      overtimeMinutesTotal: 0,
+      overtimeMinutesWeekOff: 0,
+      overtimeMinutesRegular: 0,
+      baseMinutes: 0,
+      overtimeEligible: row.employee.overtimeEligible ?? false,
+      salary: row.employee.salary ?? Number(process.env.DEFAULT_GROSS_SALARY ?? 50000)
     };
 
     if (row.status === AttendanceStatus.PRESENT || row.status === AttendanceStatus.LATE || row.status === AttendanceStatus.HALF_DAY) {
@@ -1069,16 +1080,16 @@ export async function getAttendanceSummary(month: string, department?: string) {
     if (row.status === AttendanceStatus.HOLIDAY) current.holidayDays += 1;
     if (row.workingMinutes) current.totalMinutes += row.workingMinutes;
     if (row.workingMinutes) {
-      if (row.status === AttendanceStatus.WEEK_OFF || row.status === AttendanceStatus.HOLIDAY) {
-        current.overtimeMinutes += row.workingMinutes;
-      } else {
-        const shiftMinutes = computeShiftMinutes(dayjs(row.date), row.employee.shift ?? null);
-        if (shiftMinutes != null && row.workingMinutes > shiftMinutes) {
-          current.overtimeMinutes += (row.workingMinutes - shiftMinutes);
-        }
+      const shiftMinutes = computeShiftMinutes(dayjs(row.date), row.employee.shift ?? null);
+      if (row.status === AttendanceStatus.WEEK_OFF) {
+        current.overtimeMinutesWeekOff += row.workingMinutes;
+      } else if (shiftMinutes != null && row.workingMinutes > shiftMinutes) {
+        current.overtimeMinutesRegular += (row.workingMinutes - shiftMinutes);
       }
     }
 
+    current.overtimeMinutesTotal = current.overtimeMinutesWeekOff + current.overtimeMinutesRegular;
+    current.baseMinutes = Math.max(0, current.totalMinutes - current.overtimeMinutesTotal);
     summary.set(key, current);
   }
 
@@ -1086,7 +1097,14 @@ export async function getAttendanceSummary(month: string, department?: string) {
     ...row,
     paidLeaveDays: paidLeaveDaysByEmployee.get(employeeId) ?? 0,
     totalHrs: formatMinutes(row.totalMinutes),
-    overtimeHrs: formatMinutes(row.overtimeMinutes)
+    overtimeMinutes: row.overtimeMinutesTotal,
+    overtimeMinutesWeekOff: row.overtimeMinutesWeekOff,
+    overtimeMinutesRegular: row.overtimeMinutesRegular,
+    overtimeHrs: formatMinutes(row.overtimeMinutesTotal),
+    overtimeHrsWeekOff: formatMinutes(row.overtimeMinutesWeekOff),
+    overtimeHrsRegular: formatMinutes(row.overtimeMinutesRegular),
+    baseMinutes: row.baseMinutes,
+    baseHrs: formatMinutes(row.baseMinutes)
   }));
 
   const sandwichMap = await getSandwichDeductions(month, department);
@@ -1120,16 +1138,26 @@ export async function getAttendanceSummary(month: string, department?: string) {
 
 export async function getSalarySheet(month: string, department?: string) {
   const summary = await getAttendanceSummary(month, department);
-  const grossSalary = Number(process.env.DEFAULT_GROSS_SALARY ?? 50000);
   const workingDays = Number(process.env.WORKING_DAYS ?? 26);
   const latePenalty = Number(process.env.LATE_PENALTY ?? 200);
 
   return summary.map((row) => {
-    const lopDays = row.lopDays;
-    const deductions = Math.round((lopDays * grossSalary / workingDays) + (row.late * latePenalty));
+    const monthlySalary = row.salary ?? Number(process.env.DEFAULT_GROSS_SALARY ?? 50000);
+    const hourlyRate = monthlySalary / workingDays / 8;
+    const overtimeEligible = row.overtimeEligible ?? false;
+    const normalOtSalary = overtimeEligible ? Math.round((row.overtimeMinutesRegular / 60) * hourlyRate * 1.5) : 0;
+    const sundayHolidayOtSalary = overtimeEligible ? Math.round((row.overtimeMinutesWeekOff / 60) * hourlyRate * 1.0) : 0;
+    const totalOtSalary = normalOtSalary + sundayHolidayOtSalary;
+    const grossSalary = Math.round(monthlySalary + totalOtSalary);
+    const deductions = Math.round((row.lopDays * monthlySalary / workingDays) + (row.late * latePenalty));
     const netSalary = Math.round(grossSalary - deductions);
+
     return {
       ...row,
+      salary: monthlySalary,
+      normalOtSalary,
+      sundayHolidayOtSalary,
+      totalOtSalary,
       grossSalary,
       deductions,
       netSalary

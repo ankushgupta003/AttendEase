@@ -40,7 +40,15 @@ type SummaryRow = {
   lopDays: number;
   totalPaidDays: number;
 };
-type SalaryRow = SummaryRow & { grossSalary: number; deductions: number; netSalary: number };
+type SalaryRow = SummaryRow & {
+  salary: number;
+  normalOtSalary: number;
+  sundayHolidayOtSalary: number;
+  totalOtSalary: number;
+  grossSalary: number;
+  deductions: number;
+  netSalary: number;
+};
 
 export default function ReportsPage() {
   const [selectedMonth, setSelectedMonth] = useState(getInitialMonth);
@@ -116,6 +124,10 @@ export default function ReportsPage() {
     ...row
   }));
   const filteredSalary = salaryData.map((row) => ({
+    salary: 0,
+    normalOtSalary: 0,
+    sundayHolidayOtSalary: 0,
+    totalOtSalary: 0,
     grossSalary: 0,
     deductions: 0,
     netSalary: 0,
@@ -213,9 +225,9 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <div className="rounded-lg border">
-                  <div className="w-full overflow-x-auto pb-2">
+                  <div className="w-full overflow-auto max-h-[500px] pb-2">
                     <table className="w-full text-xs data-grid">
-                    <thead className="whitespace-nowrap">
+                    <thead className="whitespace-nowrap sticky top-0 z-10 bg-white">
                       <tr className="bg-muted/40 border-b">
                         {[
                           'Code',
@@ -316,7 +328,7 @@ export default function ReportsPage() {
                               <span className="text-muted-foreground">—</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 font-mono font-medium">{row.overtimeHrs}</td>
+                          {/* <td className="px-4 py-3 font-mono font-medium">{row.overtimeHrs}</td> */}
                           <td className="px-4 py-3 font-mono font-medium">{row.totalHrs}</td>
                         </tr>
                       ))}
@@ -336,7 +348,7 @@ export default function ReportsPage() {
                         <td className="px-4 py-2.5 font-bold">{filtered.reduce((a, r) => a + (r.payableSundays ?? 0), 0)}</td>
                         <td className="px-4 py-2.5 font-bold">{filtered.reduce((a, r) => a + (r.payableHolidays ?? 0), 0)}</td>
                         <td className="px-4 py-2.5 font-bold">{formatPaidDays(filtered.reduce((a, r) => a + (r.totalPaidDays ?? 0), 0))}</td>
-                        <td className="px-4 py-2.5"></td>
+                        {/* <td className="px-4 py-2.5"></td> */}
                         <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(filtered.reduce((a, r) => a + (r.baseMinutes ?? 0), 0))}</td>
                         <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(visibleRegularOvertimeMinutes)}</td>
                         <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(visibleWeekOffOvertimeMinutes)}</td>
@@ -379,11 +391,11 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <div className="rounded-lg border">
-                  <div className="w-full overflow-x-auto pb-2">
+                  <div className="w-full overflow-auto max-h-[500px] pb-2">
                     <table className="w-full text-xs data-grid">
-                    <thead className="whitespace-nowrap">
+                    <thead className="whitespace-nowrap sticky top-0 z-10 bg-white">
                       <tr className="bg-muted/40 border-b">
-                        {['Code', 'Name', 'Department', 'Working Days', 'LOP Days', 'Gross (₹)', 'Deductions (₹)', 'Net Salary (₹)'].map(h => (
+                        {['Code', 'Name', 'Department', 'Monthly Salary (₹)', 'Normal OT (₹)', 'Sunday/Holiday OT (₹)', 'Total OT (₹)', 'Gross (₹)', 'Deductions (₹)', 'Net Salary (₹)'].map(h => (
                           <th key={h} className="text-left px-4 py-2.5 font-semibold text-muted-foreground">{h}</th>
                         ))}
                       </tr>
@@ -394,8 +406,10 @@ export default function ReportsPage() {
                           <td className="px-4 py-3 font-mono text-muted-foreground">{row.code}</td>
                           <td className="px-4 py-3 font-medium">{row.name}</td>
                           <td className="px-4 py-3 text-muted-foreground">{row.dept}</td>
-                          <td className="px-4 py-3 font-medium">{row.present}</td>
-                          <td className="px-4 py-3 text-status-absent font-medium">{row.lopDays}</td>
+                          <td className="px-4 py-3 font-mono">₹{row.salary.toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-3 font-mono">₹{row.normalOtSalary.toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-3 font-mono">₹{row.sundayHolidayOtSalary.toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-3 font-mono">₹{row.totalOtSalary.toLocaleString('en-IN')}</td>
                           <td className="px-4 py-3 font-mono">₹{row.grossSalary.toLocaleString('en-IN')}</td>
                           <td className="px-4 py-3 font-mono text-status-absent">₹{row.deductions.toLocaleString('en-IN')}</td>
                           <td className="px-4 py-3 font-mono font-semibold text-status-present">₹{row.netSalary.toLocaleString('en-IN')}</td>
@@ -404,7 +418,11 @@ export default function ReportsPage() {
                     </tbody>
                     <tfoot>
                       <tr className="bg-muted/30 border-t-2 border-border">
-                        <td colSpan={5} className="px-4 py-2.5 font-semibold text-xs">Totals</td>
+                        <td colSpan={3} className="px-4 py-2.5 font-semibold text-xs">Totals</td>
+                        <td className="px-4 py-2.5 font-bold font-mono">₹{filteredSalary.reduce((a, r) => a + r.salary, 0).toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-2.5 font-bold font-mono">₹{filteredSalary.reduce((a, r) => a + r.normalOtSalary, 0).toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-2.5 font-bold font-mono">₹{filteredSalary.reduce((a, r) => a + r.sundayHolidayOtSalary, 0).toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-2.5 font-bold font-mono">₹{filteredSalary.reduce((a, r) => a + r.totalOtSalary, 0).toLocaleString('en-IN')}</td>
                         <td className="px-4 py-2.5 font-bold font-mono">₹{filteredSalary.reduce((a, r) => a + r.grossSalary, 0).toLocaleString('en-IN')}</td>
                         <td className="px-4 py-2.5 font-bold font-mono text-status-absent">₹{filteredSalary.reduce((a, r) => a + r.deductions, 0).toLocaleString('en-IN')}</td>
                         <td className="px-4 py-2.5 font-bold font-mono text-status-present">₹{filteredSalary.reduce((a, r) => a + r.netSalary, 0).toLocaleString('en-IN')}</td>

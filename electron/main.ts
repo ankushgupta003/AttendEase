@@ -61,6 +61,21 @@ function saveAppConfig(configPath: string, config: AppConfig) {
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 }
 
+async function showMigrationNotice() {
+  if (isDev) return;
+
+  await dialog.showMessageBox({
+    type: "info",
+    title: `${APP_NAME} Update`,
+    message: "Applying local database updates",
+    detail:
+      "AttendEase is updating its local database schema after the app upgrade. This may take a moment.",
+    buttons: ["OK"],
+    defaultId: 0,
+    noLink: true
+  });
+}
+
 function ensureRuntimeConfig() {
   const { config, configPath } = loadAppConfig();
 
@@ -152,8 +167,14 @@ async function startBackend() {
   const { config, configPath } = ensureRuntimeConfig();
   const currentVersion = app.getVersion();
   const shouldMigrate = config.lastMigratedVersion !== currentVersion;
+
+  // Always attempt migrations for production app startups.
+  // This ensures client updates still run SQLite migrations even when the version check
+  // does not cover an edge case in update flows.
+  process.env.MIGRATE_ON_START = "1";
+
   if (shouldMigrate) {
-    process.env.MIGRATE_ON_START = "1";
+    await showMigrationNotice();
     config.lastMigratedVersion = currentVersion;
     saveAppConfig(configPath, config);
   }

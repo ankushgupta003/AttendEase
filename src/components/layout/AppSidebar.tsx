@@ -6,6 +6,7 @@ import {
   Users,
   Gear,
   FileText,
+  Buildings,
   CaretLeft,
 } from '@phosphor-icons/react';
 import {
@@ -21,9 +22,10 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
+import { getAuthUser } from '@/lib/auth';
 import AttendEaseLogo from '@/components/branding/AttendEaseLogo';
 
-const navItems = [
+const baseNavItems = [
   { title: 'Dashboard', url: '/', icon: HouseSimple },
   { title: 'Attendance', url: '/attendance', icon: Clock },
   { title: 'Upload', url: '/upload', icon: Upload },
@@ -32,7 +34,14 @@ const navItems = [
   { title: 'Reports', url: '/reports', icon: FileText },
 ];
 
+const adminNavItems = [
+  { title: 'Company Info', url: '/company-info', icon: Buildings },
+];
+
 export function AppSidebar() {
+  const authUser = getAuthUser();
+  const isAdmin = authUser?.role?.toUpperCase() === 'ADMIN';
+  const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems;
   const { state, toggleSidebar } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
