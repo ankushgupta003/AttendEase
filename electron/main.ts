@@ -194,7 +194,7 @@ async function startBackend() {
     throw new Error("Backend startServer function not found.");
   }
 
-  serverModule.startServer({ port: Number(process.env.PORT ?? DEFAULT_PORT) });
+  await serverModule.startServer({ port: Number(process.env.PORT ?? DEFAULT_PORT) });
 }
 
 function resolveWindowIconPath() {

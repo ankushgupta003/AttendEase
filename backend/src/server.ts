@@ -1,5 +1,6 @@
 import app from "./app.js";
 import { startDailyProcessor } from "./cron/dailyProcessor.js";
+import { bootstrapDatabaseOnStart } from "./lib/dbBootstrap.js";
 
 export type StartServerOptions = {
   port?: number;
@@ -7,7 +8,9 @@ export type StartServerOptions = {
   onListen?: (port: number) => void;
 };
 
-export function startServer(options: StartServerOptions = {}) {
+export async function startServer(options: StartServerOptions = {}) {
+  await bootstrapDatabaseOnStart();
+
   const port = options.port ?? Number(process.env.PORT ?? 5000);
   const server = app.listen(port, "0.0.0.0", () => {
     console.log(`AttendEase API running on port ${port}`);
