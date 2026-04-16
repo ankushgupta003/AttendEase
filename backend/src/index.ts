@@ -134,17 +134,15 @@ function splitSqlStatements(sql: string) {
     const next = sql[i + 1];
 
     if (inLineComment) {
-      current += char;
       if (char === "\n") {
         inLineComment = false;
+        current += char;
       }
       continue;
     }
 
     if (inBlockComment) {
-      current += char;
       if (char === "*" && next === "/") {
-        current += next;
         i += 1;
         inBlockComment = false;
       }
@@ -153,13 +151,11 @@ function splitSqlStatements(sql: string) {
 
     if (!inSingle && !inDouble) {
       if (char === "-" && next === "-") {
-        current += char + next;
         i += 1;
         inLineComment = true;
         continue;
       }
       if (char === "/" && next === "*") {
-        current += char + next;
         i += 1;
         inBlockComment = true;
         continue;

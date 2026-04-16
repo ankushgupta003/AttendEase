@@ -818,9 +818,9 @@ export async function getEmployeeLeaveSummary(employeeId: string, opts?: { year?
 
   const lopDays = absentDays + sandwichDeductionDays;
   const grossSalary = Number(process.env.DEFAULT_GROSS_SALARY ?? 50000);
-  const workingDays = Number(process.env.WORKING_DAYS ?? 26);
+  const monthlyDays = endDate.diff(startDate, "day") + 1;
   const latePenalty = Number(process.env.LATE_PENALTY ?? 200);
-  const deductions = Math.round((lopDays * grossSalary / workingDays) + (lateDays * latePenalty));
+  const deductions = Math.round((lopDays * grossSalary / monthlyDays) + (lateDays * latePenalty));
   const netSalary = Math.round(grossSalary - deductions);
 
   return {
@@ -1084,15 +1084,101 @@ export async function listHolidays() {
 }
 
 export async function createHoliday(payload: { name: string; date: Date; type: "NATIONAL" | "REGIONAL" | "OPTIONAL" }) {
-  return prisma.holiday.create({ data: payload });
+  const created = await prisma.holiday.create({ data: payload });
+  await reprocessAttendanceForHolidays(dayjs(created.date).format("YYYY-MM"));
+  return created;
 }
 
 export async function updateHoliday(holidayId: string, payload: { name?: string; date?: Date; type?: "NATIONAL" | "REGIONAL" | "OPTIONAL" }) {
-  return prisma.holiday.update({ where: { id: holidayId }, data: payload });
+  const existing = await prisma.holiday.findUnique({ where: { id: holidayId } });
+  if (!existing) {
+    throw new Error("Holiday not found.");
+  }
+
+  const updated = await prisma.holiday.update({ where: { id: holidayId }, data: payload });
+  const monthsToReprocess = new Set<string>([
+    dayjs(existing.date).format("YYYY-MM"),
+    dayjs(updated.date).format("YYYY-MM")
+  ]);
+
+  for (const month of monthsToReprocess) {
+    await reprocessAttendanceForHolidays(month);
+  }
+
+  return updated;
 }
 
 export async function deleteHoliday(holidayId: string) {
-  return prisma.holiday.delete({ where: { id: holidayId } });
+  const deleted = await prisma.holiday.delete({ where: { id: holidayId } });
+  await reprocessAttendanceForHolidays(dayjs(deleted.date).format("YYYY-MM"));
+  return deleted;
+}
+
+export async function reprocessAttendanceForHolidays(month: string) {
+  const { start, end } = monthRange(month);
+  
+  // Get all holidays in this period
+  const holidays = await prisma.holiday.findMany({
+    where: {
+      date: { gte: start.toDate(), lte: end.toDate() }
+    }
+  });
+  const holidayDates = new Set(holidays.map(h => dayjs(h.date).format("YYYY-MM-DD")));
+
+  // Get all attendance records for this period
+  const records = await prisma.attendance.findMany({
+    where: {
+      date: { gte: start.toDate(), lte: end.toDate() }
+    },
+    include: { employee: true }
+  });
+
+  // Get unique employees who have attendance in this month
+  const employeesInMonth = new Set(records.map(r => r.employeeId));
+
+  // Update existing attendance status based on holidays
+  for (const record of records) {
+    const dateStr = dayjs(record.date).format("YYYY-MM-DD");
+    const isHoliday = holidayDates.has(dateStr);
+    
+    // Only update if status should be HOLIDAY and isn't, or should not be HOLIDAY but is
+    if (isHoliday && record.status !== AttendanceStatus.HOLIDAY) {
+      // If it's now a holiday, update it
+      await prisma.attendance.update({
+        where: { id: record.id },
+        data: { status: AttendanceStatus.HOLIDAY }
+      });
+    } else if (!isHoliday && record.status === AttendanceStatus.HOLIDAY) {
+      // If it was marked as holiday but no longer is, reset to ABSENT
+      await prisma.attendance.update({
+        where: { id: record.id },
+        data: { status: AttendanceStatus.ABSENT }
+      });
+    }
+  }
+
+  // Create HOLIDAY records for holiday dates that don't have records for employees in the month
+  for (const employeeId of employeesInMonth) {
+    for (const holiday of holidays) {
+      const dateStr = dayjs(holiday.date).format("YYYY-MM-DD");
+      const existingRecord = records.find(r => r.employeeId === employeeId && dayjs(r.date).format("YYYY-MM-DD") === dateStr);
+      if (!existingRecord) {
+        // Create HOLIDAY record
+        await prisma.attendance.create({
+          data: {
+            employeeId,
+            date: holiday.date,
+            status: AttendanceStatus.HOLIDAY,
+            inTime: null,
+            outTime: null,
+            workingMinutes: null
+          }
+        });
+      }
+    }
+  }
+
+  return { updated: records.length, month };
 }
 
 export async function listLeaveTypes() {
@@ -1160,7 +1246,18 @@ export async function getAttendanceSummary(month: string, department?: string) {
       date: { gte: start.toDate(), lte: end.toDate() },
       employee: department && department !== "all" ? { department } : undefined
     },
-    include: { employee: { include: { shift: true } } }
+    include: {
+      employee: {
+        select: {
+          code: true,
+          name: true,
+          department: true,
+          overtimeEligible: true,
+          salary: true,
+          shift: true
+        }
+      }
+    }
   });
 
   const paidLeaveTypes = await prisma.leaveType.findMany({
@@ -1207,6 +1304,7 @@ export async function getAttendanceSummary(month: string, department?: string) {
     overtimeMinutesWeekOff: number;
     overtimeMinutesRegular: number;
     baseMinutes: number;
+    shiftMinutes: number;
     overtimeEligible: boolean;
     salary: number;
   }>();
@@ -1231,6 +1329,7 @@ export async function getAttendanceSummary(month: string, department?: string) {
       overtimeMinutesWeekOff: 0,
       overtimeMinutesRegular: 0,
       baseMinutes: 0,
+      shiftMinutes: computeShiftMinutes(dayjs(row.date), row.employee.shift ?? null) ?? 480,
       overtimeEligible: row.employee.overtimeEligible ?? false,
       salary: row.employee.salary ?? Number(process.env.DEFAULT_GROSS_SALARY ?? 50000)
     };
@@ -1304,27 +1403,33 @@ export async function getAttendanceSummary(month: string, department?: string) {
 
 export async function getSalarySheet(month: string, department?: string) {
   const summary = await getAttendanceSummary(month, department);
-  const workingDays = Number(process.env.WORKING_DAYS ?? 26);
+  const { start, end } = monthRange(month);
+  const monthlyDays = end.diff(start, "day") + 1;
   const latePenalty = Number(process.env.LATE_PENALTY ?? 200);
 
   return summary.map((row) => {
     const monthlySalary = row.salary ?? Number(process.env.DEFAULT_GROSS_SALARY ?? 50000);
-    const hourlyRate = monthlySalary / workingDays / 8;
+    const shiftHours = (row.shiftMinutes ?? 480) / 60 || 8;
+    const normalHourRate = monthlySalary / monthlyDays / 8;
+    const shiftHourRate = monthlySalary / monthlyDays / shiftHours;
     const overtimeEligible = row.overtimeEligible ?? false;
-    const normalOtSalary = overtimeEligible ? Math.round((row.overtimeMinutesRegular / 60) * hourlyRate * 1.5) : 0;
-    const sundayHolidayOtSalary = overtimeEligible ? Math.round((row.overtimeMinutesWeekOff / 60) * hourlyRate * 1.0) : 0;
+    const normalOtSalary = overtimeEligible ? Math.round(Math.floor(row.overtimeMinutesRegular / 60) * normalHourRate * 1.5) : 0;
+    const sundayHolidayOtSalary = overtimeEligible ? Math.round(Math.floor(row.overtimeMinutesWeekOff / 60) * shiftHourRate * 1.0) : 0;
     const totalOtSalary = normalOtSalary + sundayHolidayOtSalary;
-    const grossSalary = Math.round(monthlySalary + totalOtSalary);
-    const deductions = Math.round((row.lopDays * monthlySalary / workingDays) + (row.late * latePenalty));
-    const netSalary = Math.round(grossSalary - deductions);
+    const baseSalary = Math.round((monthlySalary / monthlyDays) * (row.totalPaidDays ?? 0));
+    const totalSalary = Math.round(baseSalary + totalOtSalary);
+    const deductions = Math.round(row.late * latePenalty);
+    const netSalary = Math.round(totalSalary - deductions);
 
     return {
       ...row,
       salary: monthlySalary,
+      baseSalary,
       normalOtSalary,
       sundayHolidayOtSalary,
       totalOtSalary,
-      grossSalary,
+      grossSalary: totalSalary,
+      totalSalary,
       deductions,
       netSalary
     };

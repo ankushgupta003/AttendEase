@@ -148,6 +148,7 @@ export async function exportSalarySheet(req: Request, res: Response, next: NextF
       "name",
       "dept",
       "salary",
+      "baseSalary",
       "normalOtSalary",
       "sundayHolidayOtSalary",
       "totalOtSalary",
@@ -160,10 +161,11 @@ export async function exportSalarySheet(req: Request, res: Response, next: NextF
       "Name",
       "Department",
       "Monthly Salary",
+      "Salary Based on Paid Days",
       "Normal OT Salary",
       "Sunday/Holiday OT Salary",
       "Total OT Salary",
-      "Gross Salary",
+      "Total Salary",
       "Deductions",
       "Net Salary"
     ];

@@ -42,10 +42,12 @@ type SummaryRow = {
 };
 type SalaryRow = SummaryRow & {
   salary: number;
+  baseSalary: number;
   normalOtSalary: number;
   sundayHolidayOtSalary: number;
   totalOtSalary: number;
   grossSalary: number;
+  totalSalary: number;
   deductions: number;
   netSalary: number;
 };
@@ -63,6 +65,15 @@ export default function ReportsPage() {
     const hrs = Math.floor(minutes / 60);
     const mins = Math.abs(minutes % 60);
     return `${hrs}:${String(mins).padStart(2, '0')}`;
+  };
+  const formatWholeHourOvertime = (minutes: number) => {
+    const floored = Math.floor(minutes / 60) * 60;
+    return formatMinutes(floored);
+  };
+  const formatWholeHourOvertimeTotal = (regularMinutes: number, weekOffMinutes: number) => {
+    const flooredRegular = Math.floor(regularMinutes / 60) * 60;
+    const flooredWeekOff = Math.floor(weekOffMinutes / 60) * 60;
+    return formatMinutes(flooredRegular + flooredWeekOff);
   };
 
   useEffect(() => {
@@ -125,10 +136,12 @@ export default function ReportsPage() {
   }));
   const filteredSalary = salaryData.map((row) => ({
     salary: 0,
+    baseSalary: 0,
     normalOtSalary: 0,
     sundayHolidayOtSalary: 0,
     totalOtSalary: 0,
     grossSalary: 0,
+    totalSalary: 0,
     deductions: 0,
     netSalary: 0,
     ...row
@@ -147,16 +160,16 @@ export default function ReportsPage() {
     return sum + (row.overtimeMinutes ?? 0);
   }, 0);
   const visibleWeekOffOvertimeMinutes = filtered.reduce((sum, row) => {
-    if (row.overtimeEligible) return sum + (row.overtimeMinutesWeekOff ?? 0);
+    if (row.overtimeEligible) return sum + Math.floor((row.overtimeMinutesWeekOff ?? 0) / 60) * 60;
     const key = getRowKey(row);
     if (!overtimeVisible[key]) return sum;
-    return sum + (row.overtimeMinutesWeekOff ?? 0);
+    return sum + Math.floor((row.overtimeMinutesWeekOff ?? 0) / 60) * 60;
   }, 0);
   const visibleRegularOvertimeMinutes = filtered.reduce((sum, row) => {
-    if (row.overtimeEligible) return sum + (row.overtimeMinutesRegular ?? 0);
+    if (row.overtimeEligible) return sum + Math.floor((row.overtimeMinutesRegular ?? 0) / 60) * 60;
     const key = getRowKey(row);
     if (!overtimeVisible[key]) return sum;
-    return sum + (row.overtimeMinutesRegular ?? 0);
+    return sum + Math.floor((row.overtimeMinutesRegular ?? 0) / 60) * 60;
   }, 0);
 
   return (
@@ -286,12 +299,12 @@ export default function ReportsPage() {
                           <td className="px-4 py-3 font-mono font-medium">{row.baseHrs}</td>
                           <td className="px-4 py-3">
                             {row.overtimeEligible ? (
-                              <span className="font-mono font-medium">{row.overtimeHrs}</span>
+                              <span className="font-mono font-medium">{formatWholeHourOvertime(row.overtimeMinutesRegular)}</span>
                             ) : (
                               <div className="flex items-center gap-2">
                                 {overtimeVisible[getRowKey(row)] ? (
                                   <>
-                                    <span className="font-mono font-medium">{row.overtimeHrs}</span>
+                                    <span className="font-mono font-medium">{formatWholeHourOvertime(row.overtimeMinutesRegular)}</span>
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -316,14 +329,14 @@ export default function ReportsPage() {
                           </td>
                           <td className="px-4 py-3">
                             {row.overtimeEligible || overtimeVisible[getRowKey(row)] ? (
-                              <span className="font-mono font-medium">{row.overtimeHrsWeekOff}</span>
+                              <span className="font-mono font-medium">{formatWholeHourOvertime(row.overtimeMinutesWeekOff)}</span>
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
                           </td>
                           <td className="px-4 py-3">
                             {row.overtimeEligible || overtimeVisible[getRowKey(row)] ? (
-                              <span className="font-mono font-medium">{row.overtimeHrsRegular}</span>
+                              <span className="font-mono font-medium">{formatWholeHourOvertimeTotal(row.overtimeMinutesRegular, row.overtimeMinutesWeekOff)}</span>
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
@@ -352,7 +365,7 @@ export default function ReportsPage() {
                         <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(filtered.reduce((a, r) => a + (r.baseMinutes ?? 0), 0))}</td>
                         <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(visibleRegularOvertimeMinutes)}</td>
                         <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(visibleWeekOffOvertimeMinutes)}</td>
-                        <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(visibleOvertimeMinutes)}</td>
+                        <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(visibleRegularOvertimeMinutes + visibleWeekOffOvertimeMinutes)}</td>
                         <td className="px-4 py-2.5 font-bold font-mono">{formatMinutes(filtered.reduce((a, r) => a + (r.baseMinutes ?? 0) + (r.overtimeMinutes ?? 0), 0))}</td>
                       </tr>
                     </tfoot>
@@ -395,7 +408,7 @@ export default function ReportsPage() {
                     <table className="w-full text-xs data-grid">
                     <thead className="whitespace-nowrap sticky top-0 z-10 bg-white">
                       <tr className="bg-muted/40 border-b">
-                        {['Code', 'Name', 'Department', 'Monthly Salary (₹)', 'Normal OT (₹)', 'Sunday/Holiday OT (₹)', 'Total OT (₹)', 'Gross (₹)', 'Deductions (₹)', 'Net Salary (₹)'].map(h => (
+                        {['Code', 'Name', 'Department', 'Monthly Salary (₹)', 'Base Salary (₹)', 'Normal OT (₹)', 'Sunday/Holiday OT (₹)', 'Total OT (₹)', 'Total Salary (₹)', 'Deductions (₹)', 'Net Salary (₹)'].map(h => (
                           <th key={h} className="text-left px-4 py-2.5 font-semibold text-muted-foreground">{h}</th>
                         ))}
                       </tr>
@@ -407,10 +420,11 @@ export default function ReportsPage() {
                           <td className="px-4 py-3 font-medium">{row.name}</td>
                           <td className="px-4 py-3 text-muted-foreground">{row.dept}</td>
                           <td className="px-4 py-3 font-mono">₹{row.salary.toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-3 font-mono">₹{row.baseSalary.toLocaleString('en-IN')}</td>
                           <td className="px-4 py-3 font-mono">₹{row.normalOtSalary.toLocaleString('en-IN')}</td>
                           <td className="px-4 py-3 font-mono">₹{row.sundayHolidayOtSalary.toLocaleString('en-IN')}</td>
                           <td className="px-4 py-3 font-mono">₹{row.totalOtSalary.toLocaleString('en-IN')}</td>
-                          <td className="px-4 py-3 font-mono">₹{row.grossSalary.toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-3 font-mono">₹{row.totalSalary.toLocaleString('en-IN')}</td>
                           <td className="px-4 py-3 font-mono text-status-absent">₹{row.deductions.toLocaleString('en-IN')}</td>
                           <td className="px-4 py-3 font-mono font-semibold text-status-present">₹{row.netSalary.toLocaleString('en-IN')}</td>
                         </tr>
@@ -420,10 +434,11 @@ export default function ReportsPage() {
                       <tr className="bg-muted/30 border-t-2 border-border">
                         <td colSpan={3} className="px-4 py-2.5 font-semibold text-xs">Totals</td>
                         <td className="px-4 py-2.5 font-bold font-mono">₹{filteredSalary.reduce((a, r) => a + r.salary, 0).toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-2.5 font-bold font-mono">₹{filteredSalary.reduce((a, r) => a + r.baseSalary, 0).toLocaleString('en-IN')}</td>
                         <td className="px-4 py-2.5 font-bold font-mono">₹{filteredSalary.reduce((a, r) => a + r.normalOtSalary, 0).toLocaleString('en-IN')}</td>
                         <td className="px-4 py-2.5 font-bold font-mono">₹{filteredSalary.reduce((a, r) => a + r.sundayHolidayOtSalary, 0).toLocaleString('en-IN')}</td>
                         <td className="px-4 py-2.5 font-bold font-mono">₹{filteredSalary.reduce((a, r) => a + r.totalOtSalary, 0).toLocaleString('en-IN')}</td>
-                        <td className="px-4 py-2.5 font-bold font-mono">₹{filteredSalary.reduce((a, r) => a + r.grossSalary, 0).toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-2.5 font-bold font-mono">₹{filteredSalary.reduce((a, r) => a + r.totalSalary, 0).toLocaleString('en-IN')}</td>
                         <td className="px-4 py-2.5 font-bold font-mono text-status-absent">₹{filteredSalary.reduce((a, r) => a + r.deductions, 0).toLocaleString('en-IN')}</td>
                         <td className="px-4 py-2.5 font-bold font-mono text-status-present">₹{filteredSalary.reduce((a, r) => a + r.netSalary, 0).toLocaleString('en-IN')}</td>
                       </tr>

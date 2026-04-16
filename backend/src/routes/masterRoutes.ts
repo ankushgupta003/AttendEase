@@ -10,6 +10,7 @@ import {
   deleteHolidayHandler,
   uploadHolidayHandler,
   downloadHolidayTemplate,
+  reprocessAttendanceHandler,
   listLeaveTypesHandler,
   upsertLeaveTypeHandler,
   deleteLeaveTypeHandler,
@@ -31,6 +32,7 @@ router.patch("/holidays/:holidayId", requireRole(["ADMIN", "HR"]), updateHoliday
 router.delete("/holidays/:holidayId", requireRole(["ADMIN", "HR"]), deleteHolidayHandler);
 router.post("/holidays/upload", requireRole(["ADMIN", "HR"]), upload.single("file"), uploadHolidayHandler);
 router.get("/holidays/template", downloadHolidayTemplate);
+router.post("/holidays/reprocess", requireRole(["ADMIN", "HR"]), reprocessAttendanceHandler);
 
 router.get("/leave-types", listLeaveTypesHandler);
 router.post("/leave-types", requireRole(["ADMIN", "HR"]), upsertLeaveTypeHandler);

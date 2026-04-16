@@ -9,6 +9,7 @@ import {
   createHoliday,
   updateHoliday,
   deleteHoliday,
+  reprocessAttendanceForHolidays,
   listLeaveTypes,
   upsertLeaveType,
   deleteLeaveType
@@ -165,6 +166,19 @@ export async function downloadHolidayTemplate(req: Request, res: Response, next:
     res.setHeader("Content-Disposition", "attachment; filename=holiday_template.xlsx");
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     return res.send(buffer);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function reprocessAttendanceHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { month } = req.body as { month: string };
+    if (!month) {
+      return res.status(400).json({ message: "Month is required (format: YYYY-MM)." });
+    }
+    const result = await reprocessAttendanceForHolidays(month);
+    return res.json({ message: "Attendance records reprocessed based on updated holidays.", ...result });
   } catch (error) {
     return next(error);
   }
