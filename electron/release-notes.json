@@ -1,4 +1,15 @@
 {
+  "0.1.12": [
+    "What's new:",
+    "- Improved update startup flow to ensure backend migration entrypoint runs on client machines.",
+    "- Added clearer migration/startup logging for easier support diagnostics.",
+    "",
+    "Fixes:",
+    "- Fixed cases where app update created DB backup but schema migrations did not continue.",
+    "",
+    "No action required:",
+    "- Just update and restart the app. Migration and startup now run through the corrected backend entry flow."
+  ],
   "0.1.11": [
     "What's new:",
     "- Salary export redesigned with colorful native Excel table format.",

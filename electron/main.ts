@@ -187,14 +187,16 @@ async function startBackend() {
   }
   process.env.PORT = String(process.env.PORT ?? DEFAULT_PORT);
 
-  const serverPath = path.join(process.resourcesPath, "backend", "dist", "server.js");
-  const serverModule = require(serverPath);
-
-  if (typeof serverModule.startServer !== "function") {
-    throw new Error("Backend startServer function not found.");
+  const backendEntryPath = path.join(process.resourcesPath, "backend", "dist", "index.js");
+  appendUpdateLog(dbPath, `Starting backend entry: ${backendEntryPath}`);
+  try {
+    // backend/dist/index.js runs migrations (when MIGRATE_ON_START=1) and starts the server.
+    require(backendEntryPath);
+    appendUpdateLog(dbPath, "Backend startup triggered successfully.");
+  } catch (err: any) {
+    appendUpdateLog(dbPath, `Backend startup failed: ${String(err?.stack ?? err)}`);
+    throw err;
   }
-
-  serverModule.startServer({ port: Number(process.env.PORT ?? DEFAULT_PORT) });
 }
 
 function resolveWindowIconPath() {
