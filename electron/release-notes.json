@@ -1,4 +1,15 @@
 {
+  "0.1.13": [
+    "What's new:",
+    "- Improved migration resilience for client databases with partially applied schema changes.",
+    "",
+    "Fixes:",
+    "- Fixed migration failure on some upgraded clients caused by duplicate column errors (example: carryForward).",
+    "- Migration runner now safely skips already-applied duplicate-column statements and continues.",
+    "",
+    "No action required:",
+    "- Update and restart the app. Database migration will continue automatically."
+  ],
   "0.1.12": [
     "What's new:",
     "- Improved update startup flow to ensure backend migration entrypoint runs on client machines.",

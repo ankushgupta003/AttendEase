@@ -243,12 +243,13 @@ async function runSqlMigrations() {
         try {
           await prisma.$executeRawUnsafe(statement);
         } catch (stmtErr: any) {
-          // If a table or index already exists, skip it silently
+          // If schema element already exists, skip it silently
           // This can happen if migrations were partially applied
           if (
             stmtErr?.code === "P2010" &&
             (stmtErr?.meta?.message?.includes("already exists") ||
-             stmtErr?.meta?.message?.includes("UNIQUE constraint failed"))
+             stmtErr?.meta?.message?.includes("UNIQUE constraint failed") ||
+             stmtErr?.meta?.message?.includes("duplicate column name"))
           ) {
             appendMigrationLog(`  Already applied: ${statement.substring(0, 50)}...`);
             continue;
