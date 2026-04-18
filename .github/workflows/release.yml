@@ -46,7 +46,21 @@ jobs:
         run: npm --prefix backend-postgres run build:exe
 
       - name: Build Server Installer
-        run: '& "C:\Program Files (x86)\NSIS\makensis.exe" "server-installer\installer.nsi"'
+        shell: pwsh
+        run: |
+          $makensis = (Get-Command makensis -ErrorAction SilentlyContinue)?.Source
+          if (-not $makensis) {
+            $candidates = @(
+              "$env:ProgramFiles(x86)\NSIS\makensis.exe",
+              "$env:ProgramFiles\NSIS\makensis.exe",
+              "C:\ProgramData\chocolatey\bin\makensis.exe"
+            )
+            $makensis = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $makensis) {
+            throw "makensis.exe was not found after NSIS install."
+          }
+          & $makensis "server-installer\installer.nsi"
 
       - name: Upload Server Installer to Release
         uses: softprops/action-gh-release@v2
