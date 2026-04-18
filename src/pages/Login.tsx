@@ -40,7 +40,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f7f4ef] px-4 py-12">
+    <div className="min-h-screen bg-[#f7f4ef] px-4 py-8 md:py-12">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_20%,#e9d8fd,transparent_40%),radial-gradient(circle_at_80%_10%,#bfdbfe,transparent_35%),radial-gradient(circle_at_50%_90%,#bbf7d0,transparent_40%)]" />
       <div className="absolute inset-0 -z-10 opacity-[0.35] [background-size:48px_48px] [background-image:linear-gradient(to_right,#1f2937_1px,transparent_1px),linear-gradient(to_bottom,#1f2937_1px,transparent_1px)]" />
 

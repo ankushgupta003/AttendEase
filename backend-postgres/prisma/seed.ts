@@ -25,6 +25,12 @@ async function main() {
     create: { username: hrUser, passwordHash: hrHash, role: UserRole.HR },
     update: { passwordHash: hrHash, role: UserRole.HR }
   });
+
+  await prisma.salaryType.upsert({
+    where: { name: "Nuvo" },
+    create: { name: "Nuvo", isActive: true },
+    update: { isActive: true }
+  });
 }
 
 main()

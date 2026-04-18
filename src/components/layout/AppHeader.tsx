@@ -38,19 +38,19 @@ export function AppHeader({ title, selectedMonth, onMonthChange }: AppHeaderProp
   const role = user?.role ? user.role.toUpperCase() : "";
 
   return (
-    <header className="sticky top-0 z-30 flex h-[62px] items-center border-b border-border/70 bg-white/75 px-4 md:px-6 gap-3 backdrop-blur">
+    <header className="sticky top-0 z-30 flex h-[72px] items-center border-b border-border/70 bg-background/85 px-4 md:px-6 xl:px-8 gap-3 md:gap-4 backdrop-blur supports-[backdrop-filter]:bg-background/75">
       <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
       <Separator orientation="vertical" className="h-6" />
 
-      <div className="flex-1">
-        <h1 className="text-base font-semibold text-foreground">{title}</h1>
-        <p className="text-[11px] text-muted-foreground hidden sm:block">Attendance & payroll command center</p>
+      <div className="flex-1 min-w-0">
+        <h1 className="text-lg font-semibold text-foreground truncate">{title}</h1>
+        <p className="text-sm text-muted-foreground hidden sm:block">Attendance & payroll command center</p>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 md:gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2 text-xs h-9 rounded-full px-3">
+            <Button variant="outline" size="sm" className="gap-2 text-sm h-10 rounded-full px-4">
               <CalendarBlank className="h-4 w-4 text-muted-foreground" weight="duotone" />
               <span>{currentMonthLabel}</span>
               <CaretDown className="h-3 w-3 text-muted-foreground" />
@@ -66,7 +66,7 @@ export function AppHeader({ title, selectedMonth, onMonthChange }: AppHeaderProp
                       const month = String(selectedMonthNum || 1).padStart(2, "0");
                       onMonthChange(`${y}-${month}`);
                     }}
-                    className={`flex-1 rounded-full px-2 py-1 text-xs border ${y === selectedYear ? "bg-accent text-accent-foreground border-accent" : "border-border hover:bg-muted/60"}`}
+                    className={`flex-1 rounded-full px-2.5 py-1.5 text-sm border ${y === selectedYear ? "bg-accent text-accent-foreground border-accent" : "border-border hover:bg-muted/60"}`}
                   >
                     {y}
                   </button>
@@ -82,7 +82,7 @@ export function AppHeader({ title, selectedMonth, onMonthChange }: AppHeaderProp
                   <button
                     key={label}
                     onClick={() => onMonthChange(value)}
-                    className={`rounded-full px-2 py-1 text-xs border ${isActive ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted/60"}`}
+                    className={`rounded-full px-2.5 py-1.5 text-sm border ${isActive ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted/60"}`}
                   >
                     {label}
                   </button>
@@ -92,19 +92,19 @@ export function AppHeader({ title, selectedMonth, onMonthChange }: AppHeaderProp
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button variant="ghost" size="icon" className="h-9 w-9 relative">
+        <Button variant="ghost" size="icon" className="h-10 w-10 relative">
           <BellRinging className="h-4 w-4 text-muted-foreground" weight="duotone" />
           <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-destructive" />
         </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-2 h-9 px-2">
-              <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
+            <Button variant="ghost" size="sm" className="gap-2 h-10 px-3">
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <UserCircle className="h-5 w-5 text-primary" weight="duotone" />
               </div>
-              <span className="text-xs font-semibold hidden sm:block">{displayName}</span>
-              {role && <span className="text-[10px] text-muted-foreground hidden sm:block">{role}</span>}
+              <span className="text-sm font-semibold hidden sm:block">{displayName}</span>
+              {role && <span className="text-xs text-muted-foreground hidden sm:block">{role}</span>}
               <CaretDown className="h-3 w-3 text-muted-foreground hidden sm:block" />
             </Button>
           </DropdownMenuTrigger>

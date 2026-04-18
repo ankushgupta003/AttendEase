@@ -1,14 +1,18 @@
 import dotenv from "dotenv";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { startServer } from "./server.js";
 import { prisma } from "./lib/prisma.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 function loadEnv() {
-  dotenv.config();
+  dotenv.config({ path: path.join(__dirname, "..", ".env"), override: true });
   const argIndex = process.argv.findIndex((arg) => arg === "--config");
   const configPath = argIndex >= 0 ? process.argv[argIndex + 1] : undefined;
-  const fallbackPath = "config.env";
+  const fallbackPath = path.join(__dirname, "..", "config.env");
   const resolvedPath = configPath ?? (fs.existsSync(fallbackPath) ? fallbackPath : undefined);
   if (resolvedPath) {
     dotenv.config({ path: resolvedPath, override: true });

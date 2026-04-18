@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Employee, LeaveSummary, LeaveType } from '@/types';
+import { Employee, LeaveSummary, LeaveType, SalaryType } from '@/types';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { getInitialMonth, persistMonth } from '@/lib/month';
 
@@ -31,6 +31,7 @@ export default function EmployeesPage() {
   const [attendanceData, setAttendanceData] = useState<any>(null);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [salaryTypes, setSalaryTypes] = useState<SalaryType[]>([]);
   const [leaveRangeFrom, setLeaveRangeFrom] = useState('');
   const [leaveRangeTo, setLeaveRangeTo] = useState('');
   const [leaveTypeCode, setLeaveTypeCode] = useState('');
@@ -86,6 +87,9 @@ export default function EmployeesPage() {
         if (rows.length && !leaveTypeCode) setLeaveTypeCode(rows[0].code);
       })
       .catch(() => setLeaveTypes([]));
+    apiGet<SalaryType[]>("/salary-types")
+      .then((rows) => setSalaryTypes(rows))
+      .catch(() => setSalaryTypes([]));
   }, []);
 
   const departments = useMemo(() => {
@@ -165,6 +169,8 @@ export default function EmployeesPage() {
       name: '',
       department: 'Engineering',
       shift: 'General',
+      salaryTypeId: salaryTypes.find((row) => row.name.toLowerCase() === 'nuvo')?.id ?? salaryTypes[0]?.id ?? '',
+      salaryTypeName: salaryTypes.find((row) => row.name.toLowerCase() === 'nuvo')?.name ?? salaryTypes[0]?.name ?? 'Nuvo',
       active: true,
       overtimeEligible: true,
       salary: 0,
@@ -182,6 +188,7 @@ export default function EmployeesPage() {
         name: editEmp.name,
         department: editEmp.department,
         shiftName: editEmp.shift,
+        salaryTypeId: editEmp.salaryTypeId || undefined,
         active: editEmp.active,
         overtimeEligible: editEmp.overtimeEligible,
         salary: editEmp.salary,
@@ -194,6 +201,7 @@ export default function EmployeesPage() {
         code: editEmp.code,
         name: editEmp.name,
         department: editEmp.department,
+        salaryTypeId: editEmp.salaryTypeId || undefined,
         active: editEmp.active,
         overtimeEligible: editEmp.overtimeEligible,
         salary: editEmp.salary,
@@ -231,7 +239,7 @@ export default function EmployeesPage() {
 
   return (
     <AppLayout title="Employees" selectedMonth={selectedMonth} onMonthChange={setSelectedMonth}>
-      <div className="space-y-4">
+      <div className="ui-page">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <h2 className="text-base font-semibold">Employee Directory</h2>
@@ -254,18 +262,18 @@ export default function EmployeesPage() {
         </div>
 
         <div className="rounded-lg border bg-card">
-          <div className="w-full overflow-x-auto">
+          <div className="ui-table-scroll max-h-[640px]">
             <table className="w-full text-xs data-grid">
             <thead>
               <tr className="bg-muted/40 border-b">
-                {['Code', 'Name', 'Department', 'Shift', 'OT Eligible', 'Status', 'Actions'].map(h => (
+                {['Code', 'Name', 'Department', 'Shift', 'Salary Type', 'OT Eligible', 'Status', 'Actions'].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 font-semibold text-muted-foreground">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">No employees found</td></tr>
+                <tr><td colSpan={8} className="text-center py-10 text-muted-foreground">No employees found</td></tr>
               ) : filtered.map(emp => (
                 <tr key={emp.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3 font-mono font-medium text-muted-foreground">{emp.code}</td>
@@ -284,6 +292,9 @@ export default function EmployeesPage() {
                     <Badge variant="outline" className="text-xs font-normal">{emp.department}</Badge>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{emp.shift}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant="secondary" className="text-xs font-medium">{emp.salaryTypeName || 'Nuvo'}</Badge>
+                  </td>
                   <td className="px-4 py-3">
                     <Switch
                       checked={emp.overtimeEligible}
@@ -364,6 +375,18 @@ export default function EmployeesPage() {
                     <SelectContent>{shifts.map(s => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Salary Type</Label>
+                <Select
+                  value={editEmp.salaryTypeId || ''}
+                  onValueChange={v => setEditEmp(p => p && ({ ...p, salaryTypeId: v, salaryTypeName: salaryTypes.find((row) => row.id === v)?.name }))}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select salary type" /></SelectTrigger>
+                  <SelectContent>
+                    {salaryTypes.map((row) => <SelectItem key={row.id} value={row.id} className="text-xs">{row.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
                 <Label>Active Status</Label>

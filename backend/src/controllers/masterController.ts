@@ -14,7 +14,14 @@ import {
   upsertLeaveType,
   deleteLeaveType,
   getLeavePolicy,
-  updateLeavePolicy
+  updateLeavePolicy,
+  listSalaryTypes,
+  createSalaryType,
+  updateSalaryType,
+  listAdvanceLedger,
+  upsertAdvanceLedger,
+  addAdvanceIssue,
+  listAdvanceHistory
 } from "../services/attendanceService.js";
 
 function toHolidayDto(holiday: any) {
@@ -249,6 +256,139 @@ export async function updateLeavePolicyHandler(req: Request, res: Response, next
     }
     const policy = await updateLeavePolicy({ yearType });
     return res.json(policy);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function listSalaryTypesHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const includeInactive = req.query.includeInactive === "true";
+    const rows = await listSalaryTypes(includeInactive);
+    return res.json(rows);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function createSalaryTypeHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { name, isActive } = req.body as { name: string; isActive?: boolean };
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: "name is required." });
+    }
+    const row = await createSalaryType({ name: name.trim(), isActive });
+    return res.status(201).json(row);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function updateSalaryTypeHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { salaryTypeId } = req.params;
+    const { name, isActive } = req.body as { name?: string; isActive?: boolean };
+    const row = await updateSalaryType(salaryTypeId, {
+      name: name?.trim(),
+      isActive
+    });
+    return res.json(row);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function listAdvanceLedgerHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const month = String(req.query.month ?? "");
+    if (!month) {
+      return res.status(400).json({ message: "month is required (YYYY-MM)." });
+    }
+    const department = req.query.department ? String(req.query.department) : undefined;
+    const rows = await listAdvanceLedger(month, department);
+    return res.json(rows);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function upsertAdvanceLedgerHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const {
+      employeeId,
+      month,
+      fine,
+      advance,
+      others,
+      arrear,
+      salaryRemark
+    } = req.body as {
+      employeeId: string;
+      month: string;
+      fine?: number;
+      advance?: number;
+      others?: number;
+      arrear?: number;
+      salaryRemark?: string | null;
+    };
+
+    if (!employeeId || !month) {
+      return res.status(400).json({ message: "employeeId and month are required." });
+    }
+
+    const row = await upsertAdvanceLedger({
+      employeeId,
+      month,
+      fine: Number(fine ?? 0),
+      advance: Number(advance ?? 0),
+      others: Number(others ?? 0),
+      arrear: Number(arrear ?? 0),
+      salaryRemark: salaryRemark ?? null
+    });
+    return res.json(row);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function addAdvanceIssueHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { employeeId } = req.params;
+    const { amount, entryDate, remark } = req.body as {
+      amount: number;
+      entryDate: string;
+      remark?: string | null;
+    };
+
+    if (!employeeId) {
+      return res.status(400).json({ message: "employeeId is required." });
+    }
+
+    const parsed = dayjs(entryDate, "YYYY-MM-DD", true);
+    if (!parsed.isValid()) {
+      return res.status(400).json({ message: "entryDate is required (YYYY-MM-DD)." });
+    }
+
+    const row = await addAdvanceIssue({
+      employeeId,
+      amount: Number(amount ?? 0),
+      entryDate: new Date(Date.UTC(parsed.year(), parsed.month(), parsed.date(), 12, 0, 0)),
+      remark: remark ?? null
+    });
+    return res.status(201).json(row);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function listAdvanceHistoryHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { employeeId } = req.params;
+    if (!employeeId) {
+      return res.status(400).json({ message: "employeeId is required." });
+    }
+    const rows = await listAdvanceHistory(employeeId);
+    return res.json(rows);
   } catch (error) {
     return next(error);
   }

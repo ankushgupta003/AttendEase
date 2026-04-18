@@ -60,6 +60,12 @@ async function main() {
       update: leaveType
     });
   }
+
+  await prisma.salaryType.upsert({
+    where: { name: "Nuvo" },
+    create: { name: "Nuvo", isActive: true },
+    update: { isActive: true }
+  });
 }
 
 main()

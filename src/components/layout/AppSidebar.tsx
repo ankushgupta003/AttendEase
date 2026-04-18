@@ -61,7 +61,7 @@ export function AppSidebar() {
       <SidebarContent className="px-2 py-2">
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu className="gap-1.5">
+            <SidebarMenu className="gap-1">
               {navItems.map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
@@ -70,7 +70,7 @@ export function AppSidebar() {
                       <Link
                         to={item.url}
                         className={cn(
-                          'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all',
+                          'flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all',
                           isActive
                             ? 'bg-primary text-primary-foreground shadow-[0_12px_24px_-18px_rgba(37,99,235,0.9)]'
                             : 'text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground'
@@ -94,7 +94,7 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border/60 p-2">
         <button
           onClick={toggleSidebar}
-          className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground transition-colors text-xs"
+          className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground transition-colors text-sm"
         >
           <CaretLeft className={cn('h-3.5 w-3.5 transition-transform', collapsed && 'rotate-180')} />
           {!collapsed && <span>Collapse</span>}

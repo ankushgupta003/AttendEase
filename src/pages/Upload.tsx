@@ -56,7 +56,7 @@ export default function UploadPage() {
 
   return (
     <AppLayout title="Upload Attendance" selectedMonth={selectedMonth} onMonthChange={setSelectedMonth}>
-      <div className="max-w-3xl space-y-5">
+      <div className="max-w-3xl ui-page">
         <div className="flex items-center gap-2">
           {(['upload', 'map', 'preview', 'done'] as const).map((s, i) => (
             <div key={s} className="flex items-center gap-2">
@@ -224,7 +224,7 @@ export default function UploadPage() {
               )}
 
               <div className="rounded-lg border">
-                <div className="w-full overflow-x-auto">
+                <div className="ui-table-scroll max-h-[340px]">
                   <table className="w-full text-xs data-grid">
                   <thead>
                     <tr className="bg-muted/40 border-b">

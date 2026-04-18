@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { Shift, Holiday, LeaveType, LeavePolicy } from '@/types';
+import { Shift, Holiday, LeaveType, LeavePolicy, SalaryType, AdvanceLedgerRow, AdvanceHistoryRow } from '@/types';
 import { apiDelete, apiDownload, apiGet, apiPatch, apiPost, apiPostForm } from '@/lib/api';
 import { getInitialMonth, persistMonth } from '@/lib/month';
 
@@ -23,6 +23,16 @@ export default function MastersPage() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [leavePolicy, setLeavePolicy] = useState<LeavePolicy | null>(null);
+  const [salaryTypes, setSalaryTypes] = useState<SalaryType[]>([]);
+  const [editSalaryType, setEditSalaryType] = useState<SalaryType | null>(null);
+  const [advanceLedgerRows, setAdvanceLedgerRows] = useState<AdvanceLedgerRow[]>([]);
+  const [historyEmployee, setHistoryEmployee] = useState<AdvanceLedgerRow | null>(null);
+  const [advanceHistoryRows, setAdvanceHistoryRows] = useState<AdvanceHistoryRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [issueEmployee, setIssueEmployee] = useState<AdvanceLedgerRow | null>(null);
+  const [issueAmount, setIssueAmount] = useState<number>(0);
+  const [issueDate, setIssueDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [issueRemark, setIssueRemark] = useState('');
   const [apiMode, setApiMode] = useState<'local' | 'lan'>('local');
   const [apiBaseUrl, setApiBaseUrl] = useState('http://localhost:5000/api');
   const [testingConnection, setTestingConnection] = useState(false);
@@ -42,7 +52,14 @@ export default function MastersPage() {
     apiGet<Holiday[]>("/holidays").then(setHolidays).catch(() => setHolidays([]));
     apiGet<LeaveType[]>("/leave-types").then(setLeaveTypes).catch(() => setLeaveTypes([]));
     apiGet<LeavePolicy>("/leave-policy").then(setLeavePolicy).catch(() => setLeavePolicy(null));
+    apiGet<SalaryType[]>("/salary-types").then(setSalaryTypes).catch(() => setSalaryTypes([]));
   }, []);
+
+  useEffect(() => {
+    apiGet<AdvanceLedgerRow[]>("/advance-ledger", { month: selectedMonth })
+      .then(setAdvanceLedgerRows)
+      .catch(() => setAdvanceLedgerRows([]));
+  }, [selectedMonth]);
 
   useEffect(() => {
     const savedMode = window.localStorage.getItem("apiMode") as 'local' | 'lan' | null;
@@ -84,6 +101,84 @@ export default function MastersPage() {
       return exists ? prev.map(l => l.code === saved.code ? saved : l) : [...prev, saved];
     });
     setEditLeave(null);
+  };
+
+  const saveSalaryType = async () => {
+    if (!editSalaryType?.name?.trim()) return;
+    if (editSalaryType.id) {
+      const updated = await apiPatch<SalaryType>(`/salary-types/${editSalaryType.id}`, {
+        name: editSalaryType.name.trim(),
+        isActive: editSalaryType.isActive ?? true
+      });
+      setSalaryTypes((prev) => prev.map((row) => row.id === updated.id ? updated : row));
+    } else {
+      const created = await apiPost<SalaryType>("/salary-types", {
+        name: editSalaryType.name.trim(),
+        isActive: true
+      });
+      setSalaryTypes((prev) => [...prev, created]);
+    }
+    setEditSalaryType(null);
+  };
+
+  const parseApiErrorMessage = (error: unknown, fallback: string) => {
+    if (!(error instanceof Error)) return fallback;
+    try {
+      const parsed = JSON.parse(error.message) as { message?: string };
+      return parsed?.message || fallback;
+    } catch {
+      return error.message || fallback;
+    }
+  };
+
+  const refreshAdvanceLedger = async () => {
+    const refreshed = await apiGet<AdvanceLedgerRow[]>("/advance-ledger", { month: selectedMonth });
+    setAdvanceLedgerRows(refreshed);
+  };
+
+  const openAdvanceHistory = async (row: AdvanceLedgerRow) => {
+    setHistoryEmployee(row);
+    setHistoryLoading(true);
+    try {
+      const history = await apiGet<AdvanceHistoryRow[]>(`/advance-ledger/${row.employeeId}/history`);
+      setAdvanceHistoryRows(history);
+    } catch {
+      setAdvanceHistoryRows([]);
+      toast({ title: 'History load failed', description: 'Unable to fetch advance history.', variant: 'destructive' });
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const openIssueDialog = (row: AdvanceLedgerRow) => {
+    setIssueEmployee(row);
+    setIssueAmount(0);
+    setIssueDate(new Date().toISOString().slice(0, 10));
+    setIssueRemark('');
+  };
+
+  const submitAdvanceIssue = async () => {
+    if (!issueEmployee) return;
+    try {
+      await apiPost(`/advance-ledger/${issueEmployee.employeeId}/issue`, {
+        amount: Number(issueAmount || 0),
+        entryDate: issueDate,
+        remark: issueRemark || null
+      });
+      await refreshAdvanceLedger();
+      if (historyEmployee?.employeeId === issueEmployee.employeeId) {
+        const history = await apiGet<AdvanceHistoryRow[]>(`/advance-ledger/${issueEmployee.employeeId}/history`);
+        setAdvanceHistoryRows(history);
+      }
+      toast({ title: 'Advance added', description: 'Manual advance entry has been recorded.' });
+      setIssueEmployee(null);
+    } catch (error) {
+      toast({
+        title: 'Add advance failed',
+        description: parseApiErrorMessage(error, 'Unable to add advance entry.'),
+        variant: 'destructive'
+      });
+    }
   };
   const updateLeaveYearType = async (yearType: LeavePolicy["yearType"]) => {
     try {
@@ -180,7 +275,7 @@ export default function MastersPage() {
 
   return (
     <AppLayout title="Master Data" selectedMonth={selectedMonth} onMonthChange={setSelectedMonth}>
-      <div className="space-y-4">
+      <div className="ui-page">
         <h2 className="text-base font-semibold">Master Configuration</h2>
 
         <Tabs defaultValue="shifts" className="space-y-4">
@@ -188,6 +283,8 @@ export default function MastersPage() {
             <TabsTrigger value="shifts" className="text-xs">Shifts</TabsTrigger>
             <TabsTrigger value="holidays" className="text-xs">Holidays</TabsTrigger>
             <TabsTrigger value="leave" className="text-xs">Leave Types</TabsTrigger>
+            <TabsTrigger value="salary-types" className="text-xs">Salary Types</TabsTrigger>
+            <TabsTrigger value="advance-ledger" className="text-xs">Advance Ledger</TabsTrigger>
             <TabsTrigger value="connection" className="text-xs">Connection</TabsTrigger>
           </TabsList>
 
@@ -354,6 +451,87 @@ export default function MastersPage() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="salary-types">
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-semibold">Salary Type Master</CardTitle>
+                  <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setEditSalaryType({ id: '', name: '', isActive: true })}>
+                    <Plus className="h-3 w-3" weight="bold" /> Add Salary Type
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {salaryTypes.map((row) => (
+                    <div key={row.id} className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <p className="text-sm font-semibold">{row.name}</p>
+                        <p className="text-xs text-muted-foreground">{row.isActive ? 'Active' : 'Inactive'}</p>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditSalaryType(row)}>
+                        <PencilSimple className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="advance-ledger">
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-semibold">Advance Ledger Master ({selectedMonth})</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-lg border">
+                  <div className="ui-table-scroll max-h-[520px]">
+                    <table className="w-full text-xs data-grid min-w-[1120px]">
+                      <thead>
+                        <tr className="bg-muted/40 border-b">
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Code</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Name</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Department</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Fine</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Advance</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Others</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Arrear</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Outstanding</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Remark</th>
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {advanceLedgerRows.map((row) => (
+                          <tr key={row.employeeId} className="border-b border-border/50 last:border-0">
+                            <td className="px-4 py-2.5 font-mono">{row.code}</td>
+                            <td className="px-4 py-2.5 font-medium">{row.name}</td>
+                            <td className="px-4 py-2.5 text-muted-foreground">{row.department}</td>
+                            <td className="px-4 py-2.5">Rs {Number(row.fine || 0).toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-2.5">Rs {Number(row.advance || 0).toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-2.5">Rs {Number(row.others || 0).toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-2.5">Rs {Number(row.arrear || 0).toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-2.5 font-medium">Rs {Number(row.outstandingAdvance || 0).toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-2.5">{row.salaryRemark || '-'}</td>
+                            <td className="px-4 py-2.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => openIssueDialog(row)}>Add Advance</Button>
+                                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => openAdvanceHistory(row)}>View History</Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* Connection Tab */}
           <TabsContent value="connection">
             <Card className="border-0 shadow-sm">
@@ -408,6 +586,114 @@ export default function MastersPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={!!issueEmployee} onOpenChange={() => setIssueEmployee(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Advance {issueEmployee ? `- ${issueEmployee.name}` : ''}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Amount</Label>
+              <Input
+                type="number"
+                min={1}
+                value={issueAmount || ''}
+                onChange={(e) => setIssueAmount(Number(e.target.value || 0))}
+                className="h-8 text-xs"
+                placeholder="Enter amount"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Date</Label>
+              <Input
+                type="date"
+                value={issueDate}
+                onChange={(e) => setIssueDate(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Remark</Label>
+              <Input
+                value={issueRemark}
+                onChange={(e) => setIssueRemark(e.target.value)}
+                className="h-8 text-xs"
+                placeholder="Optional remark"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setIssueEmployee(null)}>Cancel</Button>
+            <Button size="sm" onClick={submitAdvanceIssue}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!historyEmployee} onOpenChange={() => setHistoryEmployee(null)}>
+        <DialogContent className="sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Advance History {historyEmployee ? `- ${historyEmployee.name}` : ''}</DialogTitle>
+          </DialogHeader>
+          <div className="rounded-lg border">
+            <div className="max-h-[420px] overflow-auto">
+              <table className="w-full text-xs data-grid">
+                <thead>
+                  <tr className="bg-muted/40 border-b">
+                    <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Date</th>
+                    <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Month</th>
+                    <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Type</th>
+                    <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Amount</th>
+                    <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Outstanding</th>
+                    <th className="text-left px-3 py-2 font-semibold text-muted-foreground min-w-[280px]">Remark</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyLoading ? (
+                    <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Loading history...</td></tr>
+                  ) : advanceHistoryRows.length === 0 ? (
+                    <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">No advance history found.</td></tr>
+                  ) : advanceHistoryRows.map((item) => (
+                    <tr key={item.id} className="border-b border-border/50 last:border-0">
+                      <td className="px-3 py-2">{item.date}</td>
+                      <td className="px-3 py-2">{item.month}</td>
+                      <td className="px-3 py-2">{item.type}</td>
+                      <td className="px-3 py-2">Rs {Number(item.amount || 0).toLocaleString('en-IN')}</td>
+                      <td className="px-3 py-2 font-medium">Rs {Number(item.runningOutstanding || 0).toLocaleString('en-IN')}</td>
+                      <td className="px-3 py-2 wrap">{item.remark || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setHistoryEmployee(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editSalaryType} onOpenChange={() => setEditSalaryType(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>{editSalaryType?.id ? 'Edit Salary Type' : 'New Salary Type'}</DialogTitle></DialogHeader>
+          {editSalaryType && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Name</Label>
+                <Input value={editSalaryType.name} onChange={e => setEditSalaryType(p => p && ({ ...p, name: e.target.value }))} className="h-8 text-xs" />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border px-3 py-2.5">
+                <Label>Active</Label>
+                <Switch checked={editSalaryType.isActive} onCheckedChange={v => setEditSalaryType(p => p && ({ ...p, isActive: v }))} />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setEditSalaryType(null)}>Cancel</Button>
+            <Button size="sm" onClick={saveSalaryType}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Shift Modal */}
       <Dialog open={!!editShift} onOpenChange={() => setEditShift(null)}>

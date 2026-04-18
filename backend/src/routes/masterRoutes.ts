@@ -15,7 +15,14 @@ import {
   upsertLeaveTypeHandler,
   deleteLeaveTypeHandler,
   getLeavePolicyHandler,
-  updateLeavePolicyHandler
+  updateLeavePolicyHandler,
+  listSalaryTypesHandler,
+  createSalaryTypeHandler,
+  updateSalaryTypeHandler,
+  listAdvanceLedgerHandler,
+  upsertAdvanceLedgerHandler,
+  addAdvanceIssueHandler,
+  listAdvanceHistoryHandler
 } from "../controllers/masterController.js";
 import { requireRole } from "../middleware/role.js";
 
@@ -41,5 +48,15 @@ router.delete("/leave-types/:code", requireRole(["ADMIN", "HR"]), deleteLeaveTyp
 
 router.get("/leave-policy", getLeavePolicyHandler);
 router.patch("/leave-policy", requireRole(["ADMIN", "HR"]), updateLeavePolicyHandler);
+
+router.get("/salary-types", listSalaryTypesHandler);
+router.post("/salary-types", requireRole(["ADMIN", "HR"]), createSalaryTypeHandler);
+router.patch("/salary-types/:salaryTypeId", requireRole(["ADMIN", "HR"]), updateSalaryTypeHandler);
+
+router.get("/advance-ledger", listAdvanceLedgerHandler);
+router.post("/advance-ledger", requireRole(["ADMIN", "HR"]), upsertAdvanceLedgerHandler);
+router.patch("/advance-ledger", requireRole(["ADMIN", "HR"]), upsertAdvanceLedgerHandler);
+router.get("/advance-ledger/:employeeId/history", listAdvanceHistoryHandler);
+router.post("/advance-ledger/:employeeId/issue", requireRole(["ADMIN", "HR"]), addAdvanceIssueHandler);
 
 export default router;

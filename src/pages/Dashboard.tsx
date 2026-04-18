@@ -91,7 +91,7 @@ export default function DashboardPage() {
 
   return (
     <AppLayout title="Dashboard" selectedMonth={selectedMonth} onMonthChange={setSelectedMonth}>
-      <div className="space-y-6">
+      <div className="ui-page">
         <div className="rounded-2xl border bg-[linear-gradient(120deg,#eef2ff,#e0f2fe_45%,#dbeafe)] text-slate-900 p-6 shadow-lg">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-2">
@@ -257,7 +257,7 @@ export default function DashboardPage() {
             {recentRecords.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No records for this month yet</p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="ui-table-scroll max-h-[340px]">
                 <table className="w-full text-xs data-grid">
                   <thead>
                     <tr className="border-b border-border">

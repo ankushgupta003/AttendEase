@@ -15,6 +15,7 @@ model Employee {
   name        String
   department  String
   shiftId     String?
+  salaryTypeId String
   active      Boolean      @default(true)
   overtimeEligible Boolean  @default(true)
   salary      Int          @default(0)
@@ -24,9 +25,13 @@ model Employee {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  shift      Shift?       @relation(fields: [shiftId], references: [id])
-  attendance Attendance[]
-  leaves     Leave[]
+  shift                    Shift?                    @relation(fields: [shiftId], references: [id])
+  salaryType               SalaryType                @relation(fields: [salaryTypeId], references: [id])
+  attendance               Attendance[]
+  leaves                   Leave[]
+  advanceLedgers           AdvanceLedger[]
+  advanceTransactions      AdvanceTransaction[]
+  attendanceSummaryRemarks AttendanceSummaryRemark[]
 }
 
 model User {
@@ -130,4 +135,64 @@ model CompanyInfo {
   address   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model SalaryType {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  employees Employee[]
+}
+
+model AdvanceLedger {
+  id           String   @id @default(uuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  month        String
+  fine         Int      @default(0)
+  advance      Int      @default(0)
+  others       Int      @default(0)
+  arrear       Int      @default(0)
+  salaryRemark String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([employeeId, month])
+  @@index([month])
+}
+
+model AdvanceTransaction {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  type        String
+  amount      Int
+  entryDate   DateTime
+  month       String
+  remark      String?
+  source      String
+  sourceMonth String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([employeeId, entryDate])
+  @@index([employeeId, month])
+  @@index([source, sourceMonth])
+  @@index([type])
+  @@unique([employeeId, source, sourceMonth], map: "AdvanceTransaction_employeeId_source_sourceMonth_key")
+}
+
+model AttendanceSummaryRemark {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  month      String
+  remark     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([employeeId, month])
+  @@index([month])
 }

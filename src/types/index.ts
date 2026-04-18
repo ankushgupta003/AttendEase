@@ -7,6 +7,8 @@ export interface Employee {
   name: string;
   department: string;
   shift: string;
+  salaryTypeId?: string;
+  salaryTypeName?: string;
   active: boolean;
   overtimeEligible: boolean;
   salary?: number;
@@ -77,6 +79,39 @@ export interface LeaveType {
 export interface LeavePolicy {
   id: string;
   yearType: 'CALENDAR' | 'FINANCIAL';
+}
+
+export interface SalaryType {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
+export interface AdvanceLedgerRow {
+  employeeId: string;
+  code: string;
+  name: string;
+  department: string;
+  month: string;
+  fine: number;
+  advance: number;
+  recoveryThisMonth: number;
+  others: number;
+  arrear: number;
+  salaryRemark: string;
+  outstandingAdvance: number;
+}
+
+export interface AdvanceHistoryRow {
+  id: string;
+  type: 'OPENING' | 'ISSUE' | 'RECOVERY';
+  source: 'MIGRATION' | 'MANUAL' | 'SALARY';
+  sourceMonth: string | null;
+  amount: number;
+  date: string;
+  month: string;
+  remark: string;
+  runningOutstanding: number;
 }
 
 export interface DashboardStats {

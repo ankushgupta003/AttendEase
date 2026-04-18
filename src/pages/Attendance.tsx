@@ -169,7 +169,7 @@ export default function AttendancePage() {
 
   return (
     <AppLayout title="Attendance" selectedMonth={selectedMonth} onMonthChange={handleMonthChange}>
-      <div className="space-y-4">
+      <div className="ui-page">
         {/* Header row */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
@@ -261,7 +261,7 @@ export default function AttendancePage() {
 
         {/* Table */}
         <div className="rounded-lg border bg-card">
-          <div className="overflow-x-auto max-h-[calc(100vh-320px)]">
+          <div className="ui-table-scroll max-h-[calc(100vh-320px)]">
             <Table className="min-w-[980px] whitespace-nowrap data-grid">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -325,9 +325,9 @@ export default function AttendancePage() {
                           {format(new Date(record.date), 'EEE')}
                         </span>
                       </TableCell>
-                      <TableCell className="font-mono">{record.inTime || <span className="text-muted-foreground/50">—</span>}</TableCell>
-                      <TableCell className="font-mono">{record.outTime || <span className="text-muted-foreground/50">—</span>}</TableCell>
-                      <TableCell className="font-mono">{record.workingHours || <span className="text-muted-foreground/50">—</span>}</TableCell>
+                      <TableCell className="font-mono">{record.inTime || <span className="text-muted-foreground/50">--</span>}</TableCell>
+                      <TableCell className="font-mono">{record.outTime || <span className="text-muted-foreground/50">--</span>}</TableCell>
+                      <TableCell className="font-mono">{record.workingHours || <span className="text-muted-foreground/50">--</span>}</TableCell>
                       <TableCell><StatusBadge status={record.status} /></TableCell>
                       <TableCell>
                         {record.isLate ? (

@@ -1,6 +1,19 @@
 {
+  "0.1.11": [
+    "What's new:",
+    "- Salary export redesigned with colorful native Excel table format.",
+    "- Attendance Summary export now matches salary export style.",
+    "- Attendance export columns updated (including separate Sunday and Holiday columns).",
+    "- OT display aligned to floor-hour format where required.",
+    "- Improved export sheet presentation (table-only header styling, cleaner gridline look).",
+    "- AutoFit-like dynamic column sizing added for exported tables.",
+    "",
+    "Fixes:",
+    "- Fixed full-row header color spill outside table range.",
+    "- Fixed visual border/gridline confusion outside the export table range."
+  ],
   "0.1.8": [
-    "What’s new:",
+    "What's new:",
     "- Leave policy support added (new Leave Policy settings).",
     "- Leave type enhancements (Carry Forward + Payment on Lapse fields).",
     "- Automatic database migration after update (no manual steps required).",
