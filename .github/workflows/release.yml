@@ -25,14 +25,55 @@ jobs:
             package-lock.json
             backend/package-lock.json
 
+      - name: Configure npm retries
+        shell: pwsh
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-factor 2
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+
       - name: Install Dependencies
-        run: npm ci
+        shell: pwsh
+        run: |
+          $max = 3
+          for ($i = 1; $i -le $max; $i++) {
+            npm ci
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            if ($i -lt $max) {
+              Write-Host "npm ci failed (attempt $i/$max). Retrying in 20s..."
+              Start-Sleep -Seconds 20
+            }
+          }
+          throw "npm ci failed after $max attempts."
 
       - name: Install Backend Dependencies
-        run: npm --prefix backend ci
+        shell: pwsh
+        run: |
+          $max = 3
+          for ($i = 1; $i -le $max; $i++) {
+            npm --prefix backend ci
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            if ($i -lt $max) {
+              Write-Host "backend npm ci failed (attempt $i/$max). Retrying in 15s..."
+              Start-Sleep -Seconds 15
+            }
+          }
+          throw "backend npm ci failed after $max attempts."
 
       - name: Install Server Backend Dependencies
-        run: npm --prefix backend-postgres ci
+        shell: pwsh
+        run: |
+          $max = 3
+          for ($i = 1; $i -le $max; $i++) {
+            npm --prefix backend-postgres ci
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            if ($i -lt $max) {
+              Write-Host "backend-postgres npm ci failed (attempt $i/$max). Retrying in 15s..."
+              Start-Sleep -Seconds 15
+            }
+          }
+          throw "backend-postgres npm ci failed after $max attempts."
 
       - name: Install NSIS
         run: choco install nsis -y
