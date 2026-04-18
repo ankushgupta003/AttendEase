@@ -10,7 +10,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:seed": "tsx prisma/seed.ts",
-    "prisma:template": "node -e \"const fs=require('fs'); if (fs.existsSync('template.db')) fs.unlinkSync('template.db');\" && cross-env DATABASE_URL=file:./template.db prisma migrate deploy && cross-env DATABASE_URL=file:./template.db tsx prisma/seed.ts"
+    "prisma:template": "node -e \"const fs=require('fs'); const p='prisma/template.db'; if (fs.existsSync(p)) fs.unlinkSync(p);\" && cross-env DATABASE_URL=file:./template.db prisma migrate deploy && cross-env DATABASE_URL=file:./template.db tsx prisma/seed.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
