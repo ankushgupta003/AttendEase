@@ -83,16 +83,32 @@ jobs:
           $makensis = (Get-Command makensis -ErrorAction SilentlyContinue)?.Source
           if (-not $makensis) {
             $candidates = @(
-              "$env:ProgramFiles(x86)\NSIS\makensis.exe",
-              "$env:ProgramFiles\NSIS\makensis.exe",
+              "${env:ProgramFiles(x86)}\NSIS\makensis.exe",
+              "${env:ProgramFiles(x86)}\NSIS\Bin\makensis.exe",
+              "${env:ProgramFiles}\NSIS\makensis.exe",
+              "${env:ProgramFiles}\NSIS\Bin\makensis.exe",
               "C:\ProgramData\chocolatey\bin\makensis.exe",
-              "C:\ProgramData\chocolatey\lib\nsis\tools\makensis.exe"
+              "C:\ProgramData\chocolatey\lib\nsis\tools\makensis.exe",
+              "C:\ProgramData\chocolatey\lib\nsis.install\tools\makensis.exe"
             )
             $makensis = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
           }
           if (-not $makensis) {
-            $makensis = (Get-ChildItem "C:\ProgramData\chocolatey" -Filter makensis.exe -Recurse -ErrorAction SilentlyContinue |
-              Select-Object -First 1 -ExpandProperty FullName)
+            $scanRoots = @(
+              "C:\ProgramData\chocolatey",
+              "${env:ProgramFiles(x86)}\NSIS",
+              "${env:ProgramFiles}\NSIS"
+            ) | Where-Object { Test-Path $_ }
+
+            foreach ($root in $scanRoots) {
+              $hit = Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -in @("makensis.exe", "makensisw.exe") } |
+                Select-Object -First 1
+              if ($hit) {
+                $makensis = $hit.FullName
+                break
+              }
+            }
           }
           if (-not $makensis) {
             throw "makensis.exe was not found after NSIS install."
