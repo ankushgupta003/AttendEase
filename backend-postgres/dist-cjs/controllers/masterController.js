@@ -12,9 +12,17 @@ exports.updateHolidayHandler = updateHolidayHandler;
 exports.deleteHolidayHandler = deleteHolidayHandler;
 exports.uploadHolidayHandler = uploadHolidayHandler;
 exports.downloadHolidayTemplate = downloadHolidayTemplate;
+exports.reprocessAttendanceHandler = reprocessAttendanceHandler;
 exports.listLeaveTypesHandler = listLeaveTypesHandler;
 exports.upsertLeaveTypeHandler = upsertLeaveTypeHandler;
 exports.deleteLeaveTypeHandler = deleteLeaveTypeHandler;
+exports.listSalaryTypesHandler = listSalaryTypesHandler;
+exports.createSalaryTypeHandler = createSalaryTypeHandler;
+exports.updateSalaryTypeHandler = updateSalaryTypeHandler;
+exports.listAdvanceLedgerHandler = listAdvanceLedgerHandler;
+exports.upsertAdvanceLedgerHandler = upsertAdvanceLedgerHandler;
+exports.addAdvanceIssueHandler = addAdvanceIssueHandler;
+exports.listAdvanceHistoryHandler = listAdvanceHistoryHandler;
 const xlsx_1 = __importDefault(require("xlsx"));
 const date_js_1 = require("../utils/date.js");
 const attendanceService_js_1 = require("../services/attendanceService.js");
@@ -166,6 +174,19 @@ async function downloadHolidayTemplate(req, res, next) {
         return next(error);
     }
 }
+async function reprocessAttendanceHandler(req, res, next) {
+    try {
+        const { month } = req.body;
+        if (!month) {
+            return res.status(400).json({ message: "Month is required (format: YYYY-MM)." });
+        }
+        const result = await (0, attendanceService_js_1.reprocessAttendanceForHolidays)(month);
+        return res.json({ message: "Attendance records reprocessed based on updated holidays.", ...result });
+    }
+    catch (error) {
+        return next(error);
+    }
+}
 async function listLeaveTypesHandler(req, res, next) {
     try {
         const leaveTypes = await (0, attendanceService_js_1.listLeaveTypes)();
@@ -193,6 +214,114 @@ async function deleteLeaveTypeHandler(req, res, next) {
         }
         await (0, attendanceService_js_1.deleteLeaveType)(code);
         return res.status(204).send();
+    }
+    catch (error) {
+        return next(error);
+    }
+}
+async function listSalaryTypesHandler(req, res, next) {
+    try {
+        const includeInactive = req.query.includeInactive === "true";
+        const rows = await (0, attendanceService_js_1.listSalaryTypes)(includeInactive);
+        return res.json(rows);
+    }
+    catch (error) {
+        return next(error);
+    }
+}
+async function createSalaryTypeHandler(req, res, next) {
+    try {
+        const { name, isActive } = req.body;
+        if (!name || !name.trim()) {
+            return res.status(400).json({ message: "name is required." });
+        }
+        const row = await (0, attendanceService_js_1.createSalaryType)({ name: name.trim(), isActive });
+        return res.status(201).json(row);
+    }
+    catch (error) {
+        return next(error);
+    }
+}
+async function updateSalaryTypeHandler(req, res, next) {
+    try {
+        const { salaryTypeId } = req.params;
+        const { name, isActive } = req.body;
+        const row = await (0, attendanceService_js_1.updateSalaryType)(salaryTypeId, {
+            name: name?.trim(),
+            isActive
+        });
+        return res.json(row);
+    }
+    catch (error) {
+        return next(error);
+    }
+}
+async function listAdvanceLedgerHandler(req, res, next) {
+    try {
+        const month = String(req.query.month ?? "");
+        if (!month) {
+            return res.status(400).json({ message: "month is required (YYYY-MM)." });
+        }
+        const department = req.query.department ? String(req.query.department) : undefined;
+        const rows = await (0, attendanceService_js_1.listAdvanceLedger)(month, department);
+        return res.json(rows);
+    }
+    catch (error) {
+        return next(error);
+    }
+}
+async function upsertAdvanceLedgerHandler(req, res, next) {
+    try {
+        const { employeeId, month, fine, advance, others, arrear, salaryRemark } = req.body;
+        if (!employeeId || !month) {
+            return res.status(400).json({ message: "employeeId and month are required." });
+        }
+        const row = await (0, attendanceService_js_1.upsertAdvanceLedger)({
+            employeeId,
+            month,
+            fine: Number(fine ?? 0),
+            advance: Number(advance ?? 0),
+            others: Number(others ?? 0),
+            arrear: Number(arrear ?? 0),
+            salaryRemark: salaryRemark ?? null
+        });
+        return res.json(row);
+    }
+    catch (error) {
+        return next(error);
+    }
+}
+async function addAdvanceIssueHandler(req, res, next) {
+    try {
+        const { employeeId } = req.params;
+        const { amount, entryDate, remark } = req.body;
+        if (!employeeId) {
+            return res.status(400).json({ message: "employeeId is required." });
+        }
+        const parsed = (0, date_js_1.dayjs)(entryDate, "YYYY-MM-DD", true);
+        if (!parsed.isValid()) {
+            return res.status(400).json({ message: "entryDate is required (YYYY-MM-DD)." });
+        }
+        const row = await (0, attendanceService_js_1.addAdvanceIssue)({
+            employeeId,
+            amount: Number(amount ?? 0),
+            entryDate: new Date(Date.UTC(parsed.year(), parsed.month(), parsed.date(), 12, 0, 0)),
+            remark: remark ?? null
+        });
+        return res.status(201).json(row);
+    }
+    catch (error) {
+        return next(error);
+    }
+}
+async function listAdvanceHistoryHandler(req, res, next) {
+    try {
+        const { employeeId } = req.params;
+        if (!employeeId) {
+            return res.status(400).json({ message: "employeeId is required." });
+        }
+        const rows = await (0, attendanceService_js_1.listAdvanceHistory)(employeeId);
+        return res.json(rows);
     }
     catch (error) {
         return next(error);

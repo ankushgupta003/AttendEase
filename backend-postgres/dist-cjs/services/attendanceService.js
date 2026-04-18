@@ -14,15 +14,24 @@ exports.createEmployee = createEmployee;
 exports.updateEmployee = updateEmployee;
 exports.updateEmployeeShift = updateEmployeeShift;
 exports.listShifts = listShifts;
+exports.listSalaryTypes = listSalaryTypes;
+exports.createSalaryType = createSalaryType;
+exports.updateSalaryType = updateSalaryType;
 exports.createShift = createShift;
 exports.updateShift = updateShift;
 exports.listHolidays = listHolidays;
 exports.createHoliday = createHoliday;
 exports.updateHoliday = updateHoliday;
 exports.deleteHoliday = deleteHoliday;
+exports.reprocessAttendanceForHolidays = reprocessAttendanceForHolidays;
 exports.listLeaveTypes = listLeaveTypes;
 exports.upsertLeaveType = upsertLeaveType;
 exports.deleteLeaveType = deleteLeaveType;
+exports.listAdvanceLedger = listAdvanceLedger;
+exports.upsertAdvanceLedger = upsertAdvanceLedger;
+exports.addAdvanceIssue = addAdvanceIssue;
+exports.listAdvanceHistory = listAdvanceHistory;
+exports.upsertAttendanceSummaryRemark = upsertAttendanceSummaryRemark;
 exports.getAttendanceSummary = getAttendanceSummary;
 exports.getSalarySheet = getSalarySheet;
 exports.getSandwichDeductions = getSandwichDeductions;
@@ -57,6 +66,15 @@ const DB_TO_UI_STATUS = {
 };
 function resolveUiStatus(status) {
     return DB_TO_UI_STATUS[status] ?? "Absent";
+}
+async function getDefaultSalaryTypeId() {
+    const existing = await prisma_js_1.prisma.salaryType.findUnique({ where: { name: "Nuvo" } });
+    if (existing)
+        return existing.id;
+    const created = await prisma_js_1.prisma.salaryType.create({
+        data: { name: "Nuvo", isActive: true }
+    });
+    return created.id;
 }
 function toUiAttendanceRow(row, leaveTypeCode) {
     return {
@@ -424,6 +442,7 @@ async function processScheduleBlocks(blocks) {
     const seenEmployees = new Set();
     let processed = 0;
     let exceptions = 0;
+    const defaultSalaryTypeId = await getDefaultSalaryTypeId();
     for (const block of blocks) {
         const shift = await getOrCreateShiftByName(block.shiftName);
         const employee = await prisma_js_1.prisma.employee.upsert({
@@ -433,6 +452,7 @@ async function processScheduleBlocks(blocks) {
                 name: block.name,
                 department: block.department,
                 shiftId: shift.id,
+                salaryTypeId: defaultSalaryTypeId,
                 active: true
             },
             update: {
@@ -618,9 +638,10 @@ async function getEmployeeLeaveSummary(employeeId, opts) {
     }
     const lopDays = absentDays + sandwichDeductionDays;
     const grossSalary = Number(process.env.DEFAULT_GROSS_SALARY ?? 50000);
-    const workingDays = Number(process.env.WORKING_DAYS ?? 26);
+    const { start, end } = (0, date_js_1.monthRange)(`${year}-${String(month).padStart(2, '0')}`);
+    const monthlyDays = end.diff(start, "day") + 1;
     const latePenalty = Number(process.env.LATE_PENALTY ?? 200);
-    const deductions = Math.round((lopDays * grossSalary / workingDays) + (lateDays * latePenalty));
+    const deductions = Math.round((lopDays * grossSalary / monthlyDays) + (lateDays * latePenalty));
     const netSalary = Math.round(grossSalary - deductions);
     return {
         year,
@@ -778,32 +799,35 @@ async function getEmployeeAttendanceSummary(employeeId, month, period = "monthly
 }
 async function listEmployees() {
     return prisma_js_1.prisma.employee.findMany({
-        include: { shift: true },
+        include: { shift: true, salaryType: true },
         orderBy: { name: "asc" }
     });
 }
 async function createEmployee(payload) {
     const shift = payload.shiftName ? await getOrCreateShiftByName(payload.shiftName) : await getOrCreateDefaultShift();
+    const salaryTypeId = payload.salaryTypeId ?? await getDefaultSalaryTypeId();
     return prisma_js_1.prisma.employee.create({
         data: {
             code: payload.code,
             name: payload.name,
             department: payload.department,
             shiftId: shift.id,
+            salaryTypeId,
             active: payload.active ?? true,
             overtimeEligible: payload.overtimeEligible ?? true,
             email: payload.email,
             phone: payload.phone,
-            designation: payload.designation
+            designation: payload.designation,
+            salary: payload.salary ?? 0
         },
-        include: { shift: true }
+        include: { shift: true, salaryType: true }
     });
 }
 async function updateEmployee(employeeId, payload) {
     return prisma_js_1.prisma.employee.update({
         where: { id: employeeId },
         data: payload,
-        include: { shift: true }
+        include: { shift: true, salaryType: true }
     });
 }
 async function updateEmployeeShift(employeeId, shiftName) {
@@ -811,11 +835,32 @@ async function updateEmployeeShift(employeeId, shiftName) {
     return prisma_js_1.prisma.employee.update({
         where: { id: employeeId },
         data: { shiftId: shift.id },
-        include: { shift: true }
+        include: { shift: true, salaryType: true }
     });
 }
 async function listShifts() {
     return prisma_js_1.prisma.shift.findMany({ orderBy: { name: "asc" } });
+}
+async function listSalaryTypes(includeInactive = false) {
+    await getDefaultSalaryTypeId();
+    return prisma_js_1.prisma.salaryType.findMany({
+        where: includeInactive ? undefined : { isActive: true },
+        orderBy: { name: "asc" }
+    });
+}
+async function createSalaryType(payload) {
+    return prisma_js_1.prisma.salaryType.create({
+        data: {
+            name: payload.name,
+            isActive: payload.isActive ?? true
+        }
+    });
+}
+async function updateSalaryType(salaryTypeId, payload) {
+    return prisma_js_1.prisma.salaryType.update({
+        where: { id: salaryTypeId },
+        data: payload
+    });
 }
 async function createShift(payload) {
     return prisma_js_1.prisma.shift.create({ data: payload });
@@ -827,13 +872,89 @@ async function listHolidays() {
     return prisma_js_1.prisma.holiday.findMany({ orderBy: { date: "asc" } });
 }
 async function createHoliday(payload) {
-    return prisma_js_1.prisma.holiday.create({ data: payload });
+    const created = await prisma_js_1.prisma.holiday.create({ data: payload });
+    await reprocessAttendanceForHolidays((0, date_js_1.dayjs)(created.date).format("YYYY-MM"));
+    return created;
 }
 async function updateHoliday(holidayId, payload) {
-    return prisma_js_1.prisma.holiday.update({ where: { id: holidayId }, data: payload });
+    const existing = await prisma_js_1.prisma.holiday.findUnique({ where: { id: holidayId } });
+    if (!existing) {
+        throw new Error("Holiday not found.");
+    }
+    const updated = await prisma_js_1.prisma.holiday.update({ where: { id: holidayId }, data: payload });
+    const monthsToReprocess = new Set([
+        (0, date_js_1.dayjs)(existing.date).format("YYYY-MM"),
+        (0, date_js_1.dayjs)(updated.date).format("YYYY-MM")
+    ]);
+    for (const month of monthsToReprocess) {
+        await reprocessAttendanceForHolidays(month);
+    }
+    return updated;
 }
 async function deleteHoliday(holidayId) {
-    return prisma_js_1.prisma.holiday.delete({ where: { id: holidayId } });
+    const deleted = await prisma_js_1.prisma.holiday.delete({ where: { id: holidayId } });
+    await reprocessAttendanceForHolidays((0, date_js_1.dayjs)(deleted.date).format("YYYY-MM"));
+    return deleted;
+}
+async function reprocessAttendanceForHolidays(month) {
+    const { start, end } = (0, date_js_1.monthRange)(month);
+    // Get all holidays in this period
+    const holidays = await prisma_js_1.prisma.holiday.findMany({
+        where: {
+            date: { gte: start.toDate(), lte: end.toDate() }
+        }
+    });
+    const holidayDates = new Set(holidays.map(h => (0, date_js_1.dayjs)(h.date).format("YYYY-MM-DD")));
+    // Get all attendance records for this period
+    const records = await prisma_js_1.prisma.attendance.findMany({
+        where: {
+            date: { gte: start.toDate(), lte: end.toDate() }
+        },
+        include: { employee: true }
+    });
+    // Get unique employees who have attendance in this month
+    const employeesInMonth = new Set(records.map(r => r.employeeId));
+    // Update existing attendance status based on holidays
+    for (const record of records) {
+        const dateStr = (0, date_js_1.dayjs)(record.date).format("YYYY-MM-DD");
+        const isHoliday = holidayDates.has(dateStr);
+        // Only update if status should be HOLIDAY and isn't, or should not be HOLIDAY but is
+        if (isHoliday && record.status !== enums_js_1.AttendanceStatus.HOLIDAY) {
+            // If it's now a holiday, update it
+            await prisma_js_1.prisma.attendance.update({
+                where: { id: record.id },
+                data: { status: enums_js_1.AttendanceStatus.HOLIDAY }
+            });
+        }
+        else if (!isHoliday && record.status === enums_js_1.AttendanceStatus.HOLIDAY) {
+            // If it was marked as holiday but no longer is, reset to ABSENT
+            await prisma_js_1.prisma.attendance.update({
+                where: { id: record.id },
+                data: { status: enums_js_1.AttendanceStatus.ABSENT }
+            });
+        }
+    }
+    // Create HOLIDAY records for holiday dates that don't have records for employees in the month
+    for (const employeeId of employeesInMonth) {
+        for (const holiday of holidays) {
+            const dateStr = (0, date_js_1.dayjs)(holiday.date).format("YYYY-MM-DD");
+            const existingRecord = records.find(r => r.employeeId === employeeId && (0, date_js_1.dayjs)(r.date).format("YYYY-MM-DD") === dateStr);
+            if (!existingRecord) {
+                // Create HOLIDAY record
+                await prisma_js_1.prisma.attendance.create({
+                    data: {
+                        employeeId,
+                        date: holiday.date,
+                        status: enums_js_1.AttendanceStatus.HOLIDAY,
+                        inTime: null,
+                        outTime: null,
+                        workingMinutes: null
+                    }
+                });
+            }
+        }
+    }
+    return { updated: records.length, month };
 }
 async function listLeaveTypes() {
     return prisma_js_1.prisma.leaveType.findMany({ orderBy: { code: "asc" } });
@@ -857,6 +978,255 @@ async function deleteLeaveType(identifier) {
     }
     throw new Error("Leave type not found.");
 }
+function toMonthKey(date) {
+    return (0, date_js_1.dayjs)(date).format("YYYY-MM");
+}
+function toNoonDate(month) {
+    return (0, date_js_1.dayjs)(`${month}-01`, "YYYY-MM-DD", true).hour(12).minute(0).second(0).millisecond(0).toDate();
+}
+function toPositiveInt(value, label) {
+    const normalized = Math.trunc(Number(value));
+    if (!Number.isFinite(normalized) || normalized <= 0) {
+        const err = new Error(`${label} must be greater than 0.`);
+        err.statusCode = 400;
+        throw err;
+    }
+    return normalized;
+}
+function toNonNegativeInt(value, label) {
+    const normalized = Math.trunc(Number(value));
+    if (!Number.isFinite(normalized) || normalized < 0) {
+        const err = new Error(`${label} cannot be negative.`);
+        err.statusCode = 400;
+        throw err;
+    }
+    return normalized;
+}
+function sortTransactionsByDate(rows) {
+    return [...rows].sort((a, b) => {
+        const dateDelta = (0, date_js_1.dayjs)(a.entryDate).valueOf() - (0, date_js_1.dayjs)(b.entryDate).valueOf();
+        if (dateDelta !== 0)
+            return dateDelta;
+        return (0, date_js_1.dayjs)(a.createdAt).valueOf() - (0, date_js_1.dayjs)(b.createdAt).valueOf();
+    });
+}
+async function getOutstandingByEmployeeIds(employeeIds) {
+    if (!employeeIds.length)
+        return new Map();
+    const grouped = await prisma_js_1.prisma.advanceTransaction.groupBy({
+        by: ["employeeId", "type"],
+        where: { employeeId: { in: employeeIds } },
+        _sum: { amount: true }
+    });
+    const totals = new Map();
+    for (const row of grouped) {
+        const current = totals.get(row.employeeId) ?? { issueLike: 0, recovery: 0 };
+        const amount = row._sum.amount ?? 0;
+        if (row.type === "RECOVERY")
+            current.recovery += amount;
+        else
+            current.issueLike += amount;
+        totals.set(row.employeeId, current);
+    }
+    return new Map(employeeIds.map((employeeId) => {
+        const row = totals.get(employeeId) ?? { issueLike: 0, recovery: 0 };
+        return [employeeId, Math.max(0, row.issueLike - row.recovery)];
+    }));
+}
+async function ensureRecoveryWithinOutstanding(employeeId, month, recoveryAmount) {
+    const [outstandingMap, existingRecovery] = await Promise.all([
+        getOutstandingByEmployeeIds([employeeId]),
+        prisma_js_1.prisma.advanceTransaction.findUnique({
+            where: {
+                employeeId_source_sourceMonth: {
+                    employeeId,
+                    source: "SALARY",
+                    sourceMonth: month
+                }
+            },
+            select: { amount: true }
+        })
+    ]);
+    const outstanding = outstandingMap.get(employeeId) ?? 0;
+    const existingAmount = existingRecovery?.amount ?? 0;
+    const allowed = outstanding + existingAmount;
+    if (recoveryAmount > allowed) {
+        const err = new Error(`Advance recovery ${recoveryAmount} exceeds outstanding advance ${allowed}.`);
+        err.statusCode = 400;
+        throw err;
+    }
+}
+async function listAdvanceLedger(month, department) {
+    const rows = await prisma_js_1.prisma.employee.findMany({
+        where: department && department !== "all" ? { department } : undefined,
+        include: {
+            advanceLedgers: {
+                where: { month },
+                take: 1
+            }
+        },
+        orderBy: { name: "asc" }
+    });
+    const outstandingByEmployee = await getOutstandingByEmployeeIds(rows.map((employee) => employee.id));
+    return rows.map((employee) => {
+        const ledger = employee.advanceLedgers[0];
+        return {
+            employeeId: employee.id,
+            code: employee.code,
+            name: employee.name,
+            department: employee.department,
+            month,
+            fine: ledger?.fine ?? 0,
+            advance: ledger?.advance ?? 0,
+            recoveryThisMonth: ledger?.advance ?? 0,
+            others: ledger?.others ?? 0,
+            arrear: ledger?.arrear ?? 0,
+            salaryRemark: ledger?.salaryRemark ?? "",
+            outstandingAdvance: outstandingByEmployee.get(employee.id) ?? 0
+        };
+    });
+}
+async function upsertAdvanceLedger(payload) {
+    const advance = payload.advance == null ? undefined : toNonNegativeInt(payload.advance, "Advance recovery");
+    if (advance !== undefined) {
+        await ensureRecoveryWithinOutstanding(payload.employeeId, payload.month, advance);
+    }
+    return prisma_js_1.prisma.$transaction(async (tx) => {
+        const ledger = await tx.advanceLedger.upsert({
+            where: {
+                employeeId_month: {
+                    employeeId: payload.employeeId,
+                    month: payload.month
+                }
+            },
+            create: {
+                employeeId: payload.employeeId,
+                month: payload.month,
+                fine: payload.fine ?? 0,
+                advance: payload.advance ?? 0,
+                others: payload.others ?? 0,
+                arrear: payload.arrear ?? 0,
+                salaryRemark: payload.salaryRemark ?? null
+            },
+            update: {
+                fine: payload.fine,
+                advance: payload.advance,
+                others: payload.others,
+                arrear: payload.arrear,
+                salaryRemark: payload.salaryRemark ?? null
+            }
+        });
+        if (advance !== undefined) {
+            if (advance === 0) {
+                await tx.advanceTransaction.deleteMany({
+                    where: {
+                        employeeId: payload.employeeId,
+                        type: "RECOVERY",
+                        source: "SALARY",
+                        sourceMonth: payload.month
+                    }
+                });
+            }
+            else {
+                await tx.advanceTransaction.upsert({
+                    where: {
+                        employeeId_source_sourceMonth: {
+                            employeeId: payload.employeeId,
+                            source: "SALARY",
+                            sourceMonth: payload.month
+                        }
+                    },
+                    create: {
+                        employeeId: payload.employeeId,
+                        type: "RECOVERY",
+                        amount: advance,
+                        entryDate: toNoonDate(payload.month),
+                        month: payload.month,
+                        remark: payload.salaryRemark ?? null,
+                        source: "SALARY",
+                        sourceMonth: payload.month
+                    },
+                    update: {
+                        amount: advance,
+                        remark: payload.salaryRemark ?? null,
+                        entryDate: toNoonDate(payload.month),
+                        month: payload.month
+                    }
+                });
+            }
+        }
+        return ledger;
+    });
+}
+async function addAdvanceIssue(payload) {
+    const amount = toPositiveInt(payload.amount, "Advance issue amount");
+    const month = toMonthKey(payload.entryDate);
+    return prisma_js_1.prisma.advanceTransaction.create({
+        data: {
+            employeeId: payload.employeeId,
+            type: "ISSUE",
+            amount,
+            entryDate: payload.entryDate,
+            month,
+            remark: payload.remark ?? null,
+            source: "MANUAL",
+            sourceMonth: null
+        }
+    });
+}
+async function listAdvanceHistory(employeeId) {
+    const rows = await prisma_js_1.prisma.advanceTransaction.findMany({
+        where: { employeeId },
+        select: {
+            id: true,
+            type: true,
+            amount: true,
+            entryDate: true,
+            month: true,
+            remark: true,
+            source: true,
+            sourceMonth: true,
+            createdAt: true
+        }
+    });
+    let runningOutstanding = 0;
+    return sortTransactionsByDate(rows).map((row) => {
+        if (row.type === "RECOVERY")
+            runningOutstanding -= row.amount;
+        else
+            runningOutstanding += row.amount;
+        runningOutstanding = Math.max(0, runningOutstanding);
+        return {
+            id: row.id,
+            type: row.type,
+            source: row.source,
+            sourceMonth: row.sourceMonth,
+            amount: row.amount,
+            date: (0, date_js_1.dayjs)(row.entryDate).format("YYYY-MM-DD"),
+            month: row.month,
+            remark: row.remark ?? "",
+            runningOutstanding
+        };
+    });
+}
+async function upsertAttendanceSummaryRemark(payload) {
+    return prisma_js_1.prisma.attendanceSummaryRemark.upsert({
+        where: {
+            employeeId_month: {
+                employeeId: payload.employeeId,
+                month: payload.month
+            }
+        },
+        create: {
+            employeeId: payload.employeeId,
+            month: payload.month,
+            remark: payload.remark ?? null
+        },
+        update: {
+            remark: payload.remark ?? null
+        }
+    });
+}
 async function getAttendanceSummary(month, department) {
     const { start, end } = (0, date_js_1.monthRange)(month);
     const totalDays = end.diff(start, "day") + 1;
@@ -865,7 +1235,24 @@ async function getAttendanceSummary(month, department) {
             date: { gte: start.toDate(), lte: end.toDate() },
             employee: department && department !== "all" ? { department } : undefined
         },
-        include: { employee: { include: { shift: true } } }
+        include: {
+            employee: {
+                select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                    department: true,
+                    overtimeEligible: true,
+                    salary: true,
+                    shift: true,
+                    salaryType: {
+                        select: {
+                            name: true
+                        }
+                    }
+                }
+            }
+        }
     });
     const paidLeaveTypes = await prisma_js_1.prisma.leaveType.findMany({
         where: { paidLeave: true },
@@ -899,6 +1286,7 @@ async function getAttendanceSummary(month, department) {
         const current = summary.get(key) ?? {
             code: row.employee.code,
             name: row.employee.name,
+            salaryTypeName: row.employee.salaryType?.name ?? "Nuvo",
             dept: row.employee.department,
             totalDays,
             present: 0,
@@ -910,8 +1298,13 @@ async function getAttendanceSummary(month, department) {
             sundayDays: 0,
             holidayDays: 0,
             totalMinutes: 0,
-            overtimeMinutes: 0,
-            overtimeEligible: row.employee.overtimeEligible ?? false
+            overtimeMinutesTotal: 0,
+            overtimeMinutesWeekOff: 0,
+            overtimeMinutesRegular: 0,
+            baseMinutes: 0,
+            shiftMinutes: computeShiftMinutes((0, date_js_1.dayjs)(row.date), row.employee.shift ?? null) ?? 480,
+            overtimeEligible: row.employee.overtimeEligible ?? false,
+            salary: row.employee.salary ?? Number(process.env.DEFAULT_GROSS_SALARY ?? 50000)
         };
         if (row.status === enums_js_1.AttendanceStatus.PRESENT || row.status === enums_js_1.AttendanceStatus.LATE || row.status === enums_js_1.AttendanceStatus.HALF_DAY) {
             current.present += 1;
@@ -931,24 +1324,41 @@ async function getAttendanceSummary(month, department) {
         if (row.workingMinutes)
             current.totalMinutes += row.workingMinutes;
         if (row.workingMinutes) {
-            if (row.status === enums_js_1.AttendanceStatus.WEEK_OFF || row.status === enums_js_1.AttendanceStatus.HOLIDAY) {
-                current.overtimeMinutes += row.workingMinutes;
+            const shiftMinutes = computeShiftMinutes((0, date_js_1.dayjs)(row.date), row.employee.shift ?? null);
+            if (row.status === enums_js_1.AttendanceStatus.WEEK_OFF) {
+                current.overtimeMinutesWeekOff += row.workingMinutes;
             }
-            else {
-                const shiftMinutes = computeShiftMinutes((0, date_js_1.dayjs)(row.date), row.employee.shift ?? null);
-                if (shiftMinutes != null && row.workingMinutes > shiftMinutes) {
-                    current.overtimeMinutes += (row.workingMinutes - shiftMinutes);
-                }
+            else if (shiftMinutes != null && row.workingMinutes > shiftMinutes) {
+                current.overtimeMinutesRegular += (row.workingMinutes - shiftMinutes);
             }
         }
+        current.overtimeMinutesTotal = current.overtimeMinutesWeekOff + current.overtimeMinutesRegular;
+        current.baseMinutes = Math.max(0, current.totalMinutes - current.overtimeMinutesTotal);
         summary.set(key, current);
     }
     const rawSummary = Array.from(summary.entries()).map(([employeeId, row]) => ({
+        employeeId,
         ...row,
         paidLeaveDays: paidLeaveDaysByEmployee.get(employeeId) ?? 0,
         totalHrs: (0, date_js_1.formatMinutes)(row.totalMinutes),
-        overtimeHrs: (0, date_js_1.formatMinutes)(row.overtimeMinutes)
+        overtimeMinutes: row.overtimeMinutesTotal,
+        overtimeMinutesWeekOff: row.overtimeMinutesWeekOff,
+        overtimeMinutesRegular: row.overtimeMinutesRegular,
+        overtimeHrs: (0, date_js_1.formatMinutes)(row.overtimeMinutesTotal),
+        overtimeHrsWeekOff: (0, date_js_1.formatMinutes)(row.overtimeMinutesWeekOff),
+        overtimeHrsRegular: (0, date_js_1.formatMinutes)(row.overtimeMinutesRegular),
+        baseMinutes: row.baseMinutes,
+        baseHrs: (0, date_js_1.formatMinutes)(row.baseMinutes)
     }));
+    const attendanceRemarks = await prisma_js_1.prisma.attendanceSummaryRemark.findMany({
+        where: {
+            month,
+            employeeId: {
+                in: rawSummary.map((row) => row.employeeId)
+            }
+        }
+    });
+    const attendanceRemarkByEmployee = new Map(attendanceRemarks.map((remark) => [remark.employeeId, remark.remark ?? ""]));
     const sandwichMap = await getSandwichDeductions(month, department);
     return rawSummary.map((row) => {
         const sandwichInfo = sandwichMap.get(row.code) ?? { total: 0, sunday: 0, holiday: 0 };
@@ -970,22 +1380,58 @@ async function getAttendanceSummary(month, department) {
             payableSundays,
             payableHolidays,
             lopDays,
-            totalPaidDays
+            totalPaidDays,
+            attendanceRemark: attendanceRemarkByEmployee.get(row.employeeId) ?? ""
         };
     });
 }
 async function getSalarySheet(month, department) {
     const summary = await getAttendanceSummary(month, department);
-    const grossSalary = Number(process.env.DEFAULT_GROSS_SALARY ?? 50000);
-    const workingDays = Number(process.env.WORKING_DAYS ?? 26);
-    const latePenalty = Number(process.env.LATE_PENALTY ?? 200);
+    const { start, end } = (0, date_js_1.monthRange)(month);
+    const monthlyDays = end.diff(start, "day") + 1;
+    const ledgers = await prisma_js_1.prisma.advanceLedger.findMany({
+        where: {
+            month,
+            employeeId: { in: summary.map((row) => row.employeeId) }
+        }
+    });
+    const ledgerByEmployee = new Map(ledgers.map((ledger) => [ledger.employeeId, ledger]));
+    const outstandingByEmployee = await getOutstandingByEmployeeIds(summary.map((row) => row.employeeId));
     return summary.map((row) => {
-        const lopDays = row.lopDays;
-        const deductions = Math.round((lopDays * grossSalary / workingDays) + (row.late * latePenalty));
-        const netSalary = Math.round(grossSalary - deductions);
+        const ledger = ledgerByEmployee.get(row.employeeId);
+        const monthlySalary = row.salary ?? Number(process.env.DEFAULT_GROSS_SALARY ?? 50000);
+        const shiftHours = (row.shiftMinutes ?? 480) / 60 || 8;
+        const normalHourRate = monthlySalary / monthlyDays / 8;
+        const shiftHourRate = monthlySalary / monthlyDays / shiftHours;
+        const overtimeEligible = row.overtimeEligible ?? false;
+        const normalOtSalary = overtimeEligible ? Math.round(Math.floor(row.overtimeMinutesRegular / 60) * normalHourRate * 1.5) : 0;
+        const sundayHolidayOtSalary = overtimeEligible ? Math.round(Math.floor(row.overtimeMinutesWeekOff / 60) * shiftHourRate * 1.0) : 0;
+        const totalOtSalary = normalOtSalary + sundayHolidayOtSalary;
+        const baseSalary = Math.round((monthlySalary / monthlyDays) * (row.totalPaidDays ?? 0));
+        const totalSalary = Math.round(baseSalary + totalOtSalary);
+        const fine = ledger?.fine ?? 0;
+        const advance = ledger?.advance ?? 0;
+        const others = ledger?.others ?? 0;
+        const arrear = ledger?.arrear ?? 0;
+        const deductions = fine + advance + others;
+        const netSalary = Math.round(totalSalary - deductions + arrear);
         return {
             ...row,
-            grossSalary,
+            weekOff: row.sundayDays,
+            sunday: row.payableSundays,
+            salary: monthlySalary,
+            baseSalary,
+            normalOtSalary,
+            sundayHolidayOtSalary,
+            totalOtSalary,
+            grossSalary: totalSalary,
+            totalSalary,
+            fine,
+            advance,
+            others,
+            arrear,
+            salaryRemark: ledger?.salaryRemark ?? "",
+            outstandingAdvance: outstandingByEmployee.get(row.employeeId) ?? 0,
             deductions,
             netSalary
         };

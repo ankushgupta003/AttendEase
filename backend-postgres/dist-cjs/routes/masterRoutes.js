@@ -18,8 +18,17 @@ router.patch("/holidays/:holidayId", (0, role_js_1.requireRole)(["ADMIN", "HR"])
 router.delete("/holidays/:holidayId", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.deleteHolidayHandler);
 router.post("/holidays/upload", (0, role_js_1.requireRole)(["ADMIN", "HR"]), upload.single("file"), masterController_js_1.uploadHolidayHandler);
 router.get("/holidays/template", masterController_js_1.downloadHolidayTemplate);
+router.post("/holidays/reprocess", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.reprocessAttendanceHandler);
 router.get("/leave-types", masterController_js_1.listLeaveTypesHandler);
 router.post("/leave-types", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.upsertLeaveTypeHandler);
 router.patch("/leave-types", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.upsertLeaveTypeHandler);
 router.delete("/leave-types/:code", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.deleteLeaveTypeHandler);
+router.get("/salary-types", masterController_js_1.listSalaryTypesHandler);
+router.post("/salary-types", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.createSalaryTypeHandler);
+router.patch("/salary-types/:salaryTypeId", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.updateSalaryTypeHandler);
+router.get("/advance-ledger", masterController_js_1.listAdvanceLedgerHandler);
+router.post("/advance-ledger", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.upsertAdvanceLedgerHandler);
+router.patch("/advance-ledger", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.upsertAdvanceLedgerHandler);
+router.get("/advance-ledger/:employeeId/history", masterController_js_1.listAdvanceHistoryHandler);
+router.post("/advance-ledger/:employeeId/issue", (0, role_js_1.requireRole)(["ADMIN", "HR"]), masterController_js_1.addAdvanceIssueHandler);
 exports.default = router;

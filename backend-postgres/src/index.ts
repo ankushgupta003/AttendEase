@@ -1,18 +1,32 @@
 import dotenv from "dotenv";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { startServer } from "./server.js";
 import { prisma } from "./lib/prisma.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+function resolveAppRoot() {
+  const candidates = [
+    process.cwd(),
+    path.resolve(process.cwd(), "backend-postgres"),
+    path.dirname(process.execPath),
+    path.join(path.dirname(process.execPath), "backend-postgres")
+  ];
+
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, "package.json"))) {
+      return dir;
+    }
+  }
+  return process.cwd();
+}
+
+const appRoot = resolveAppRoot();
 
 function loadEnv() {
-  dotenv.config({ path: path.join(__dirname, "..", ".env"), override: true });
+  dotenv.config({ path: path.join(appRoot, ".env"), override: true });
   const argIndex = process.argv.findIndex((arg) => arg === "--config");
   const configPath = argIndex >= 0 ? process.argv[argIndex + 1] : undefined;
-  const fallbackPath = path.join(__dirname, "..", "config.env");
+  const fallbackPath = path.join(appRoot, "config.env");
   const resolvedPath = configPath ?? (fs.existsSync(fallbackPath) ? fallbackPath : undefined);
   if (resolvedPath) {
     dotenv.config({ path: resolvedPath, override: true });
@@ -29,15 +43,17 @@ function ensurePrismaEngine() {
     const targetPath = path.join(targetDir, engineName);
 
     if (!fs.existsSync(targetPath)) {
-      const snapshotPath = path.join(__dirname, "..", "node_modules", ".prisma", "client", engineName);
-      if (fs.existsSync(snapshotPath)) {
-        fs.mkdirSync(targetDir, { recursive: true });
-        fs.copyFileSync(snapshotPath, targetPath);
-      } else {
-        const fallbackSnapshotPath = path.join(__dirname, "node_modules", ".prisma", "client", engineName);
-        if (fs.existsSync(fallbackSnapshotPath)) {
+      const engineCandidates = [
+        path.join(appRoot, "node_modules", ".prisma", "client", engineName),
+        path.join(targetDir, "node_modules", ".prisma", "client", engineName),
+        path.join(process.cwd(), "node_modules", ".prisma", "client", engineName)
+      ];
+
+      for (const sourcePath of engineCandidates) {
+        if (fs.existsSync(sourcePath)) {
           fs.mkdirSync(targetDir, { recursive: true });
-          fs.copyFileSync(fallbackSnapshotPath, targetPath);
+          fs.copyFileSync(sourcePath, targetPath);
+          break;
         }
       }
     }

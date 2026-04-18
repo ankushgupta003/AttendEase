@@ -8,4 +8,6 @@ router.get("/reports/attendance-summary", reportsController_js_1.attendanceSumma
 router.get("/reports/salary-sheet", reportsController_js_1.salarySheetHandler);
 router.get("/reports/attendance-summary/export", (0, role_js_1.requireRole)(["ADMIN", "HR"]), reportsController_js_1.exportAttendanceSummary);
 router.get("/reports/salary-sheet/export", (0, role_js_1.requireRole)(["ADMIN", "HR"]), reportsController_js_1.exportSalarySheet);
+router.patch("/reports/salary-sheet/:employeeId/adjustment", (0, role_js_1.requireRole)(["ADMIN", "HR"]), reportsController_js_1.updateSalaryAdjustmentHandler);
+router.patch("/reports/attendance-summary/:employeeId/remark", (0, role_js_1.requireRole)(["ADMIN", "HR"]), reportsController_js_1.updateAttendanceRemarkHandler);
 exports.default = router;
