@@ -1,8 +1,21 @@
 {
+  "0.1.15": [
+    "What's new:",
+    "- Added lunch break minutes to shift master settings.",
+    "- Sunday and Holiday OT now use actual worked time.",
+    "- Lunch break is deducted from Sunday/Holiday OT only when worked time exceeds 4 hours.",
+    "",
+    "Fixes:",
+    "- Improved local client DB upgrade handling for the new shift lunch break field.",
+    "- Attendance and salary reports keep Sunday/Holiday OT grouped consistently.",
+    "",
+    "No action required:",
+    "- Update and restart the app. The local database update will run automatically."
+  ],
   "0.1.14": [
     "What's new:",
     "- Added lunch break minutes to shift master settings.",
-    "- Sunday/Holiday OT now uses shift duration minus lunch break.",
+    "- Sunday/Holiday OT now uses actual worked time, with lunch break deducted only when work exceeds 4 hours.",
     "- Holiday work is now included in the Sunday/Holiday OT bucket and salary calculation.",
     "",
     "Fixes:",

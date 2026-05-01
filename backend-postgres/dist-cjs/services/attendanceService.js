@@ -219,6 +219,13 @@ function computeNetShiftMinutes(date, shift) {
     const lunchBreakMinutes = Math.max(0, Number(shift?.lunchBreakMinutes ?? 0));
     return Math.max(0, shiftMinutes - lunchBreakMinutes);
 }
+function computeWeekOffOtMinutes(workingMinutes, shift) {
+    const lunchBreakMinutes = Math.max(0, Number(shift?.lunchBreakMinutes ?? 0));
+    if (workingMinutes > 240) {
+        return Math.max(0, workingMinutes - lunchBreakMinutes);
+    }
+    return workingMinutes;
+}
 async function listAttendance(params) {
     const { start, end } = (0, date_js_1.monthRange)(params.month);
     const search = params.search?.trim();
@@ -1347,9 +1354,8 @@ async function getAttendanceSummary(month, department) {
             current.totalMinutes += row.workingMinutes;
         if (row.workingMinutes) {
             const shiftMinutes = computeShiftMinutes((0, date_js_1.dayjs)(row.date), row.employee.shift ?? null);
-            const shiftNetMinutes = computeNetShiftMinutes((0, date_js_1.dayjs)(row.date), row.employee.shift ?? null) ?? current.shiftNetMinutes ?? 480;
             if (row.status === enums_js_1.AttendanceStatus.WEEK_OFF || row.status === enums_js_1.AttendanceStatus.HOLIDAY) {
-                current.overtimeMinutesWeekOff += shiftNetMinutes;
+                current.overtimeMinutesWeekOff += computeWeekOffOtMinutes(row.workingMinutes, row.employee.shift ?? null);
             }
             else if (shiftMinutes != null && row.workingMinutes > shiftMinutes) {
                 current.overtimeMinutesRegular += (row.workingMinutes - shiftMinutes);
