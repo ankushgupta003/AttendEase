@@ -16,7 +16,7 @@ import { StatusBadge, getRowClass } from '@/components/common/StatusBadge';
 import { AttendanceEditModal } from '@/components/attendance/AttendanceEditModal';
 import { BulkActionModal } from '@/components/attendance/BulkActionModal';
 import { AttendanceRecord, FinalizationStatus } from '@/types';
-import { apiDownload, apiGet, apiPatch, apiPost } from '@/lib/api';
+import { apiDownloadWithFilename, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { getInitialMonth, persistMonth } from '@/lib/month';
 
@@ -203,14 +203,23 @@ export default function AttendancePage() {
               size="sm"
               className="h-8 text-xs gap-1.5"
               onClick={async () => {
-                const blob = await apiDownload("/attendance/export", { month: selectedMonth });
+                const { blob, filename } = await apiDownloadWithFilename("/attendance/export", {
+                  month: selectedMonth,
+                  search,
+                  department,
+                  status,
+                  exceptionsOnly,
+                  sortKey,
+                  sortDir
+                });
                 const url = window.URL.createObjectURL(blob);
                 const link = document.createElement("a");
                 link.href = url;
-                link.download = `attendance-${selectedMonth}.xlsx`;
+                link.download = filename || `attendance-${selectedMonth}.xlsx`;
                 document.body.appendChild(link);
                 link.click();
                 link.remove();
+                window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
               }}
             >
               <DownloadSimple className="h-3.5 w-3.5" /> Export

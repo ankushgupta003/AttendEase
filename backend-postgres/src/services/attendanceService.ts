@@ -11,7 +11,8 @@ const DEFAULT_SHIFT = {
   name: "General",
   startTime: "09:00",
   endTime: "18:00",
-  graceMinutes: 15
+  graceMinutes: 15,
+  lunchBreakMinutes: 0
 };
 
 const UI_TO_DB_STATUS: Record<UiAttendanceStatus, AttendanceStatus> = {
@@ -196,6 +197,16 @@ function computeShiftMinutes(date: dayjs.Dayjs, shift: { startTime: string; endT
   const diff = end.diff(start, "minute");
   if (diff <= 0) return null;
   return diff;
+}
+
+function computeNetShiftMinutes(
+  date: dayjs.Dayjs,
+  shift: { startTime: string; endTime: string; lunchBreakMinutes?: number | null } | null | undefined
+) {
+  const shiftMinutes = computeShiftMinutes(date, shift);
+  if (shiftMinutes == null) return null;
+  const lunchBreakMinutes = Math.max(0, Number(shift?.lunchBreakMinutes ?? 0));
+  return Math.max(0, shiftMinutes - lunchBreakMinutes);
 }
 
 export async function listAttendance(params: {
@@ -974,12 +985,40 @@ export async function updateSalaryType(salaryTypeId: string, payload: { name?: s
   });
 }
 
-export async function createShift(payload: { name: string; startTime: string; endTime: string; graceMinutes: number }) {
-  return prisma.shift.create({ data: payload });
+export async function createShift(payload: {
+  name: string;
+  startTime: string;
+  endTime: string;
+  graceMinutes: number;
+  lunchBreakMinutes?: number;
+}) {
+  return prisma.shift.create({
+    data: {
+      ...payload,
+      lunchBreakMinutes: Math.max(0, Number(payload.lunchBreakMinutes ?? 0))
+    }
+  });
 }
 
-export async function updateShift(shiftId: string, payload: { name?: string; startTime?: string; endTime?: string; graceMinutes?: number }) {
-  return prisma.shift.update({ where: { id: shiftId }, data: payload });
+export async function updateShift(
+  shiftId: string,
+  payload: {
+    name?: string;
+    startTime?: string;
+    endTime?: string;
+    graceMinutes?: number;
+    lunchBreakMinutes?: number;
+  }
+) {
+  return prisma.shift.update({
+    where: { id: shiftId },
+    data: {
+      ...payload,
+      ...(payload.lunchBreakMinutes !== undefined
+        ? { lunchBreakMinutes: Math.max(0, Number(payload.lunchBreakMinutes)) }
+        : {})
+    }
+  });
 }
 
 export async function listHolidays() {
@@ -1471,6 +1510,7 @@ export async function getAttendanceSummary(month: string, department?: string) {
     overtimeMinutesRegular: number;
     baseMinutes: number;
     shiftMinutes: number;
+    shiftNetMinutes: number;
     overtimeEligible: boolean;
     salary: number;
   }>();
@@ -1497,6 +1537,7 @@ export async function getAttendanceSummary(month: string, department?: string) {
       overtimeMinutesRegular: 0,
       baseMinutes: 0,
       shiftMinutes: computeShiftMinutes(dayjs(row.date), row.employee.shift ?? null) ?? 480,
+      shiftNetMinutes: computeNetShiftMinutes(dayjs(row.date), row.employee.shift ?? null) ?? 480,
       overtimeEligible: row.employee.overtimeEligible ?? false,
       salary: row.employee.salary ?? Number(process.env.DEFAULT_GROSS_SALARY ?? 50000)
     };
@@ -1513,8 +1554,9 @@ export async function getAttendanceSummary(month: string, department?: string) {
     if (row.workingMinutes) current.totalMinutes += row.workingMinutes;
     if (row.workingMinutes) {
       const shiftMinutes = computeShiftMinutes(dayjs(row.date), row.employee.shift ?? null);
-      if (row.status === AttendanceStatus.WEEK_OFF) {
-        current.overtimeMinutesWeekOff += row.workingMinutes;
+      const shiftNetMinutes = computeNetShiftMinutes(dayjs(row.date), row.employee.shift ?? null) ?? current.shiftNetMinutes ?? 480;
+      if (row.status === AttendanceStatus.WEEK_OFF || row.status === AttendanceStatus.HOLIDAY) {
+        current.overtimeMinutesWeekOff += shiftNetMinutes;
       } else if (shiftMinutes != null && row.workingMinutes > shiftMinutes) {
         current.overtimeMinutesRegular += (row.workingMinutes - shiftMinutes);
       }
@@ -1598,7 +1640,7 @@ export async function getSalarySheet(month: string, department?: string) {
   return summary.map((row) => {
     const ledger = ledgerByEmployee.get(row.employeeId);
     const monthlySalary = row.salary ?? Number(process.env.DEFAULT_GROSS_SALARY ?? 50000);
-    const shiftHours = (row.shiftMinutes ?? 480) / 60 || 8;
+    const shiftHours = (row.shiftNetMinutes ?? row.shiftMinutes ?? 480) / 60 || 8;
     const normalHourRate = monthlySalary / monthlyDays / 8;
     const shiftHourRate = monthlySalary / monthlyDays / shiftHours;
     const overtimeEligible = row.overtimeEligible ?? false;

@@ -135,7 +135,7 @@ async function exportAttendanceSummary(req, res, next) {
             { header: "paid leave", key: "paidLeaveDays", width: 11 },
             { header: "base hours", key: "baseHrs", width: 12 },
             { header: "normal ot", key: "normalOt", width: 10 },
-            { header: "suday/holiday OT", key: "sundayHolidayOt", width: 18 },
+            { header: "sunday/holiday OT", key: "sundayHolidayOt", width: 18 },
             { header: "total hours", key: "totalHrs", width: 12 }
         ];
         const lastCol = "Q";

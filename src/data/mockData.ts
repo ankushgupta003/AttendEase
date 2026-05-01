@@ -93,10 +93,10 @@ export function generateAttendanceRecords(month: string): AttendanceRecord[] {
 }
 
 export const mockShifts: Shift[] = [
-  { id: '1', name: 'General', startTime: '09:00', endTime: '18:00', graceMinutes: 15 },
-  { id: '2', name: 'Morning', startTime: '07:00', endTime: '15:00', graceMinutes: 10 },
-  { id: '3', name: 'Night', startTime: '22:00', endTime: '06:00', graceMinutes: 20 },
-  { id: '4', name: 'Afternoon', startTime: '14:00', endTime: '22:00', graceMinutes: 15 },
+  { id: '1', name: 'General', startTime: '09:00', endTime: '18:00', graceMinutes: 15, lunchBreakMinutes: 0 },
+  { id: '2', name: 'Morning', startTime: '07:00', endTime: '15:00', graceMinutes: 10, lunchBreakMinutes: 0 },
+  { id: '3', name: 'Night', startTime: '22:00', endTime: '06:00', graceMinutes: 20, lunchBreakMinutes: 0 },
+  { id: '4', name: 'Afternoon', startTime: '14:00', endTime: '22:00', graceMinutes: 15, lunchBreakMinutes: 0 },
 ];
 
 export const mockHolidays: Holiday[] = [

@@ -1,0 +1,1 @@
+ALTER TABLE "Shift" ADD COLUMN "lunchBreakMinutes" INTEGER NOT NULL DEFAULT 0;

@@ -98,6 +98,18 @@ async function ensureSalaryColumn() {
   }
 }
 
+async function ensureShiftLunchBreakColumn() {
+  try {
+    const columns = await prisma.$queryRawUnsafe<any[]>(`PRAGMA table_info("Shift")`);
+    const hasColumn = Array.isArray(columns) && columns.some((col) => col?.name === "lunchBreakMinutes");
+    if (!hasColumn) {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN "lunchBreakMinutes" INTEGER NOT NULL DEFAULT 0`);
+    }
+  } catch (err) {
+    console.error("Failed to ensure lunchBreakMinutes column:", err);
+  }
+}
+
 async function runSafeMigrationsIfNeeded() {
   const shouldMigrate =
     process.env.MIGRATE_ON_START === "1" ||
@@ -109,6 +121,7 @@ async function runSafeMigrationsIfNeeded() {
   await runSqlMigrations();
   await ensureOvertimeEligibleColumn();
   await ensureSalaryColumn();
+  await ensureShiftLunchBreakColumn();
   appendMigrationLog("Migration run complete.");
 }
 
@@ -279,5 +292,6 @@ void (async () => {
   loadEnv();
   ensurePrismaEngine();
   await runSafeMigrationsIfNeeded();
+  await ensureShiftLunchBreakColumn();
   startServer();
 })();

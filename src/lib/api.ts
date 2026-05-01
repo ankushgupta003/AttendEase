@@ -24,6 +24,32 @@ function authHeader() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+export function parseDownloadFilename(contentDisposition: string | null) {
+  if (!contentDisposition) return null;
+
+  const utf8Match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+  if (utf8Match) {
+    const encoded = utf8Match[1].trim().replace(/^"|"$/g, "");
+    try {
+      return decodeURIComponent(encoded);
+    } catch {
+      return encoded;
+    }
+  }
+
+  const quotedMatch = contentDisposition.match(/filename\s*=\s*"([^"]+)"/i);
+  if (quotedMatch) {
+    return quotedMatch[1].trim();
+  }
+
+  const plainMatch = contentDisposition.match(/filename\s*=\s*([^;]+)/i);
+  if (plainMatch) {
+    return plainMatch[1].trim().replace(/^"|"$/g, "");
+  }
+
+  return null;
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const message = await res.text();
@@ -96,4 +122,19 @@ export async function apiDownload(path: string, params?: Record<string, QueryVal
     throw new Error(message || `Request failed with ${res.status}`);
   }
   return res.blob();
+}
+
+export async function apiDownloadWithFilename(path: string, params?: Record<string, QueryValue>) {
+  const res = await fetch(`${getApiBase()}${path}${toQuery(params)}`, {
+    headers: authHeader()
+  });
+  if (!res.ok) {
+    const message = await res.text();
+    throw new Error(message || `Request failed with ${res.status}`);
+  }
+
+  return {
+    blob: await res.blob(),
+    filename: parseDownloadFilename(res.headers.get("Content-Disposition"))
+  };
 }

@@ -346,7 +346,7 @@ export default function ReportsPage() {
                           <th className='sticky top-0 z-[160] bg-muted/40 text-left px-4 py-3 font-semibold text-muted-foreground'>Paid Days</th>
                           <th className='sticky top-0 z-[160] bg-muted/40 text-left px-4 py-3 font-semibold text-muted-foreground'>Base Hrs</th>
                           <th className='sticky top-0 z-[160] bg-muted/40 text-left px-4 py-3 font-semibold text-muted-foreground'>OT</th>
-                          <th className='sticky top-0 z-[160] bg-muted/40 text-left px-4 py-3 font-semibold text-muted-foreground'>Week Off OT</th>
+                          <th className='sticky top-0 z-[160] bg-muted/40 text-left px-4 py-3 font-semibold text-muted-foreground'>Sunday/Holiday OT</th>
                           <th className='sticky top-0 z-[160] bg-muted/40 text-left px-4 py-3 font-semibold text-muted-foreground'>Total OT</th>
                           <th className='sticky top-0 z-[160] bg-muted/40 text-left px-4 py-3 font-semibold text-muted-foreground'>Total Hrs</th>
                           <th className='sticky top-0 z-[160] bg-muted/40 text-left px-4 py-3 font-semibold text-muted-foreground min-w-[280px]'>Remarks</th>

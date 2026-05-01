@@ -37,6 +37,49 @@ function buildLockedWarning(lockedMonths: string[]) {
   return `Warning: month(s) ${lockedMonths.join(", ")} are locked. Upload will be blocked for these months.`;
 }
 
+function slugifyFilenamePart(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
+function buildAttendanceExportFilename(params: {
+  month: string;
+  search?: string;
+  department?: string;
+  status?: string;
+  exceptionsOnly?: boolean;
+}) {
+  const parts = ["attendance", params.month];
+  const search = params.search?.trim();
+  const department = params.department && params.department !== "all" ? params.department : undefined;
+  const status = !params.exceptionsOnly && params.status && params.status !== "all" ? params.status : undefined;
+
+  if (status) {
+    const statusSlug = slugifyFilenamePart(status);
+    if (statusSlug) parts.push(`status-${statusSlug}`);
+  }
+
+  if (department) {
+    const departmentSlug = slugifyFilenamePart(department);
+    if (departmentSlug) parts.push(`department-${departmentSlug}`);
+  }
+
+  if (search) {
+    const searchSlug = slugifyFilenamePart(search);
+    if (searchSlug) parts.push(`search-${searchSlug}`);
+  }
+
+  if (params.exceptionsOnly) {
+    parts.push("exceptions-only");
+  }
+
+  return `${parts.join("-")}.xlsx`;
+}
+
 export async function listAttendanceHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const month = String(req.query.month ?? "");
@@ -225,9 +268,23 @@ export async function unlockMonth(req: Request, res: Response, next: NextFunctio
 export async function exportAttendance(req: Request, res: Response, next: NextFunction) {
   try {
     const month = String(req.query.month ?? "");
-    const rows = await listAttendance({ month, includeNonWorking: true });
-    
-    // Transform to upload template format
+    const search = req.query.search ? String(req.query.search) : undefined;
+    const department = req.query.department ? String(req.query.department) : undefined;
+    const status = req.query.status ? String(req.query.status) : undefined;
+    const exceptionsOnly = req.query.exceptionsOnly === "true";
+    const sortKey = req.query.sortKey ? (String(req.query.sortKey) as any) : undefined;
+    const sortDir = req.query.sortDir ? (String(req.query.sortDir) as any) : undefined;
+    const rows = await listAttendance({
+      month,
+      search,
+      department,
+      status: status as any,
+      exceptionsOnly,
+      sortKey,
+      sortDir,
+      includeNonWorking: true
+    });
+
     const exportRows = rows.map((row: any) => ({
       employeeId: row.employeeCode,
       name: row.employeeName,
@@ -236,13 +293,14 @@ export async function exportAttendance(req: Request, res: Response, next: NextFu
       punchIn: row.inTime || "",
       punchOut: row.outTime || ""
     }));
-    
+
     const worksheet = xlsx.utils.json_to_sheet(exportRows);
     const workbook = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(workbook, worksheet, "Attendance");
     const buffer = xlsx.write(workbook, { type: "buffer", bookType: "xlsx" });
+    const filename = buildAttendanceExportFilename({ month, search, department, status, exceptionsOnly });
 
-    res.setHeader("Content-Disposition", `attachment; filename=attendance-${month}.xlsx`);
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     return res.send(buffer);
   } catch (error) {

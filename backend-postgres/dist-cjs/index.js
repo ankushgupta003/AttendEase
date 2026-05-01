@@ -81,9 +81,27 @@ async function ensureOvertimeEligibleColumn() {
         console.error("Failed to ensure overtimeEligible column:", err);
     }
 }
+async function ensureShiftLunchBreakColumn() {
+    try {
+        // Only run for SQLite. PostgreSQL should be migrated via Prisma migrate.
+        const url = process.env.DATABASE_URL ?? "";
+        if (url.startsWith("postgresql://") || url.startsWith("postgres://")) {
+            return;
+        }
+        const columns = await prisma_js_1.prisma.$queryRawUnsafe(`PRAGMA table_info("Shift")`);
+        const hasColumn = Array.isArray(columns) && columns.some((col) => col?.name === "lunchBreakMinutes");
+        if (!hasColumn) {
+            await prisma_js_1.prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN "lunchBreakMinutes" INTEGER NOT NULL DEFAULT 0`);
+        }
+    }
+    catch (err) {
+        console.error("Failed to ensure lunchBreakMinutes column:", err);
+    }
+}
 void (async () => {
     loadEnv();
     ensurePrismaEngine();
     await ensureOvertimeEligibleColumn();
+    await ensureShiftLunchBreakColumn();
     (0, server_js_1.startServer)();
 })();

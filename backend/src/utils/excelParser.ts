@@ -9,11 +9,14 @@ export type ParsedScheduleEntry = {
   outTime: string | null;
 };
 
+export type ParsedScheduleImportMode = "simple-template" | "schedule-block";
+
 export type ParsedScheduleBlock = {
   empCode: string;
   name: string;
   department: string;
   shiftName: string;
+  importMode: ParsedScheduleImportMode;
   rangeStart?: dayjs.Dayjs | null;
   rangeEnd?: dayjs.Dayjs | null;
   entries: ParsedScheduleEntry[];
@@ -113,6 +116,7 @@ function parseSimpleTemplate(rows: unknown[][], header: {
         name,
         department,
         shiftName: "General",
+        importMode: "simple-template",
         rangeStart: null,
         rangeEnd: null,
         entries: []
@@ -187,6 +191,7 @@ export function parseScheduleWorkbook(buffer: Buffer) {
         name,
         department,
         shiftName,
+        importMode: "schedule-block",
         rangeStart,
         rangeEnd,
         entries: []

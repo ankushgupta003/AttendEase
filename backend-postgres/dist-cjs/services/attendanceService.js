@@ -42,7 +42,8 @@ const DEFAULT_SHIFT = {
     name: "General",
     startTime: "09:00",
     endTime: "18:00",
-    graceMinutes: 15
+    graceMinutes: 15,
+    lunchBreakMinutes: 0
 };
 const UI_TO_DB_STATUS = {
     Present: enums_js_1.AttendanceStatus.PRESENT,
@@ -210,6 +211,13 @@ function computeShiftMinutes(date, shift) {
     if (diff <= 0)
         return null;
     return diff;
+}
+function computeNetShiftMinutes(date, shift) {
+    const shiftMinutes = computeShiftMinutes(date, shift);
+    if (shiftMinutes == null)
+        return null;
+    const lunchBreakMinutes = Math.max(0, Number(shift?.lunchBreakMinutes ?? 0));
+    return Math.max(0, shiftMinutes - lunchBreakMinutes);
 }
 async function listAttendance(params) {
     const { start, end } = (0, date_js_1.monthRange)(params.month);
@@ -863,10 +871,23 @@ async function updateSalaryType(salaryTypeId, payload) {
     });
 }
 async function createShift(payload) {
-    return prisma_js_1.prisma.shift.create({ data: payload });
+    return prisma_js_1.prisma.shift.create({
+        data: {
+            ...payload,
+            lunchBreakMinutes: Math.max(0, Number(payload.lunchBreakMinutes ?? 0))
+        }
+    });
 }
 async function updateShift(shiftId, payload) {
-    return prisma_js_1.prisma.shift.update({ where: { id: shiftId }, data: payload });
+    return prisma_js_1.prisma.shift.update({
+        where: { id: shiftId },
+        data: {
+            ...payload,
+            ...(payload.lunchBreakMinutes !== undefined
+                ? { lunchBreakMinutes: Math.max(0, Number(payload.lunchBreakMinutes)) }
+                : {})
+        }
+    });
 }
 async function listHolidays() {
     return prisma_js_1.prisma.holiday.findMany({ orderBy: { date: "asc" } });
@@ -1303,6 +1324,7 @@ async function getAttendanceSummary(month, department) {
             overtimeMinutesRegular: 0,
             baseMinutes: 0,
             shiftMinutes: computeShiftMinutes((0, date_js_1.dayjs)(row.date), row.employee.shift ?? null) ?? 480,
+            shiftNetMinutes: computeNetShiftMinutes((0, date_js_1.dayjs)(row.date), row.employee.shift ?? null) ?? 480,
             overtimeEligible: row.employee.overtimeEligible ?? false,
             salary: row.employee.salary ?? Number(process.env.DEFAULT_GROSS_SALARY ?? 50000)
         };
@@ -1325,8 +1347,9 @@ async function getAttendanceSummary(month, department) {
             current.totalMinutes += row.workingMinutes;
         if (row.workingMinutes) {
             const shiftMinutes = computeShiftMinutes((0, date_js_1.dayjs)(row.date), row.employee.shift ?? null);
-            if (row.status === enums_js_1.AttendanceStatus.WEEK_OFF) {
-                current.overtimeMinutesWeekOff += row.workingMinutes;
+            const shiftNetMinutes = computeNetShiftMinutes((0, date_js_1.dayjs)(row.date), row.employee.shift ?? null) ?? current.shiftNetMinutes ?? 480;
+            if (row.status === enums_js_1.AttendanceStatus.WEEK_OFF || row.status === enums_js_1.AttendanceStatus.HOLIDAY) {
+                current.overtimeMinutesWeekOff += shiftNetMinutes;
             }
             else if (shiftMinutes != null && row.workingMinutes > shiftMinutes) {
                 current.overtimeMinutesRegular += (row.workingMinutes - shiftMinutes);
@@ -1400,7 +1423,7 @@ async function getSalarySheet(month, department) {
     return summary.map((row) => {
         const ledger = ledgerByEmployee.get(row.employeeId);
         const monthlySalary = row.salary ?? Number(process.env.DEFAULT_GROSS_SALARY ?? 50000);
-        const shiftHours = (row.shiftMinutes ?? 480) / 60 || 8;
+        const shiftHours = (row.shiftNetMinutes ?? row.shiftMinutes ?? 480) / 60 || 8;
         const normalHourRate = monthlySalary / monthlyDays / 8;
         const shiftHourRate = monthlySalary / monthlyDays / shiftHours;
         const overtimeEligible = row.overtimeEligible ?? false;

@@ -294,7 +294,7 @@ export default function MastersPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-semibold">Shift Definitions</CardTitle>
-                  <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setEditShift({ id: '', name: '', startTime: '09:00', endTime: '18:00', graceMinutes: 15 })}>
+                  <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setEditShift({ id: '', name: '', startTime: '09:00', endTime: '18:00', graceMinutes: 15, lunchBreakMinutes: 0 })}>
                     <Plus className="h-3 w-3" weight="bold" /> Add Shift
                   </Button>
                 </div>
@@ -305,10 +305,16 @@ export default function MastersPage() {
                     <div key={s.id} className="flex items-center justify-between p-4 rounded-lg border hover:border-primary/30 transition-colors">
                       <div>
                         <p className="font-semibold text-sm">{s.name}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{s.startTime} – {s.endTime}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{s.startTime} - {s.endTime}</p>
                         <p className="text-xs text-muted-foreground">Grace: {s.graceMinutes} mins</p>
+                        <p className="text-xs text-muted-foreground">Lunch break: {s.lunchBreakMinutes ?? 0} mins</p>
                       </div>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditShift(s)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => setEditShift({ ...s, lunchBreakMinutes: s.lunchBreakMinutes ?? 0 })}
+                      >
                         <PencilSimple className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -718,6 +724,15 @@ export default function MastersPage() {
               <div className="space-y-1.5">
                 <Label>Grace Minutes</Label>
                 <Input type="number" value={editShift.graceMinutes} onChange={e => setEditShift(p => p && ({ ...p, graceMinutes: Number(e.target.value) }))} className="h-8 text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Lunch Break Minutes</Label>
+                <Input
+                  type="number"
+                  value={editShift.lunchBreakMinutes}
+                  onChange={e => setEditShift(p => p && ({ ...p, lunchBreakMinutes: Number(e.target.value) }))}
+                  className="h-8 text-xs"
+                />
               </div>
             </div>
           )}

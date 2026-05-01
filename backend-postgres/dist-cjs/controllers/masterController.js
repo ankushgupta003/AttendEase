@@ -47,8 +47,14 @@ async function listShiftsHandler(req, res, next) {
 }
 async function createShiftHandler(req, res, next) {
     try {
-        const { name, startTime, endTime, graceMinutes } = req.body;
-        const created = await (0, attendanceService_js_1.createShift)({ name, startTime, endTime, graceMinutes });
+        const { name, startTime, endTime, graceMinutes, lunchBreakMinutes } = req.body;
+        const created = await (0, attendanceService_js_1.createShift)({
+            name,
+            startTime,
+            endTime,
+            graceMinutes,
+            lunchBreakMinutes
+        });
         return res.status(201).json(created);
     }
     catch (error) {

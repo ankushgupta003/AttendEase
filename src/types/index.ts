@@ -57,6 +57,7 @@ export interface Shift {
   startTime: string;
   endTime: string;
   graceMinutes: number;
+  lunchBreakMinutes: number;
 }
 
 export interface Holiday {

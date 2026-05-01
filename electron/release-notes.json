@@ -1,4 +1,17 @@
 {
+  "0.1.14": [
+    "What's new:",
+    "- Added lunch break minutes to shift master settings.",
+    "- Sunday/Holiday OT now uses shift duration minus lunch break.",
+    "- Holiday work is now included in the Sunday/Holiday OT bucket and salary calculation.",
+    "",
+    "Fixes:",
+    "- Improved local client DB upgrade handling for the new shift lunch break field.",
+    "- Attendance and salary reports now label this bucket as Sunday/Holiday OT.",
+    "",
+    "No action required:",
+    "- Update and restart the app. The local database update will run automatically."
+  ],
   "0.1.13": [
     "What's new:",
     "- Improved migration resilience for client databases with partially applied schema changes.",
